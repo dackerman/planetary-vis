@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { SPEED_REFERENCES, speedComparison } from '@/lib/speed-references';
 import { DEFAULT_SPEED, formatDistance, formatSpeed, type NavigationMode, type Telemetry } from '@/lib/navigation';
 import { BODIES, AU_KM, type BodyId, type LayoutMode } from '@/lib/planets';
 import type { Observatory } from '@/lib/observatory';
@@ -24,6 +25,7 @@ export default function HomePage() {
   const [navigation, setNavigation] = useState<NavigationMode>('look');
   const [speed, setSpeed] = useState(DEFAULT_SPEED);
   const [telemetry, setTelemetry] = useState<Telemetry>({ gridKm: 127562, movingKms: 0, traveledKm: 0, referenceKm: 0 });
+  const comparison = speedComparison(speed);
   const body = BODIES.find(b => b.id === selected)!;
 
   useEffect(() => {
@@ -99,8 +101,10 @@ export default function HomePage() {
       <section className="travel-panel" aria-label="Movement controls">
         <div className="travel-panel-top"><span className="eyebrow">TRAVEL SPEED</span><span className={telemetry.movingKms > 0.01 ? 'moving-status moving' : 'moving-status'}>{telemetry.movingKms > 0.01 ? 'MOVING' : 'STOPPED'}</span></div>
         <div className="speed-readout"><strong>{formatSpeed(speed)}</strong><div className="speed-buttons"><button aria-label="Halve movement speed" onClick={() => changeSpeed(speed / 2)} disabled={!ready}><Minus size={15}/></button><button aria-label="Double movement speed" onClick={() => changeSpeed(speed * 2)} disabled={!ready}><Plus size={15}/></button></div></div>
+        <div className="speed-comparison"><strong>{comparison.text}</strong><span>{(comparison.reference.kms * 1000).toLocaleString('en-US', { maximumFractionDigits: 0 })} m/s · {comparison.reference.detail}</span><a href={comparison.reference.source} target="_blank" rel="noreferrer">Reference ↗</a></div>
         <Slider aria-label="Movement speed" min={-3} max={8} step={0.05} value={[Math.log10(speed)]} onValueChange={value => changeSpeed(10 ** (Array.isArray(value) ? value[0] : value))} disabled={!ready}/>
         <div className="speed-presets"><button onClick={() => changeSpeed(2000)}>Planetary</button><button onClick={() => changeSpeed(299792.458)}>Light speed</button><button onClick={() => changeSpeed(10000000)}>Interplanetary</button></div>
+        <details className="speed-library"><summary>Try a real-world speed</summary><div>{SPEED_REFERENCES.map(ref => <div key={ref.name}><button disabled={!ready} onClick={() => changeSpeed(ref.kms)}><strong>{ref.name}</strong><span>{formatSpeed(ref.kms)}</span></button><small>{ref.detail} · <a href={ref.source} target="_blank" rel="noreferrer">source ↗</a></small></div>)}</div></details>
         <ToggleGroup aria-label="Mouse navigation" value={[navigation]} onValueChange={values => { if (values[0]) engine.current?.setNavigation(values[0] as NavigationMode); }} className="segmented look-modes">
           <ToggleGroupItem value="look">Mouse look</ToggleGroupItem><ToggleGroupItem value="orbit">Orbit</ToggleGroupItem>
         </ToggleGroup>

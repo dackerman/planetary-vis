@@ -287,3 +287,15 @@ kbd { font-family: var(--font-geist-mono),monospace; color: #b7cbe2; }
 
 .world-label { transition: opacity 180ms ease; will-change: transform; }
 @media (prefers-reduced-motion: reduce) { .world-label { transition: none; } }
+
+.speed-comparison { margin: -2px 0 17px; font-size: 12px; line-height: 1.5; }
+.speed-comparison strong { display: block; font-weight: 500; color: #cadcf2; }
+.speed-comparison span { display: block; color: #95a6bb; font-size: 10px; margin-top: 4px; }
+.speed-comparison a, .speed-library a { color: #a6c9ed; font-size: 10px; }
+.speed-library { margin: 0 0 14px; font-size: 11px; color: #b6c7db; }
+.speed-library summary { cursor: pointer; padding: 6px 0; }
+.speed-library > div { max-height: 210px; overflow-y: auto; }
+.speed-library button { width: 100%; display: flex; justify-content: space-between; gap: 8px; padding: 9px 0 3px; border: 0; background: transparent; color: #d4e2f2; cursor: pointer; text-align: left; }
+.speed-library button strong { font-weight: 500; }
+.speed-library small { display: block; color: #92a5ba; font-size: 9px; padding-bottom: 6px; }
+.travel-panel { max-height: calc(100vh - 200px); overflow-y: auto; }
