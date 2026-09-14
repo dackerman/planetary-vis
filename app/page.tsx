@@ -10,6 +10,7 @@ import { SPEED_REFERENCES, speedComparison } from '@/lib/speed-references';
 import { DEFAULT_SPEED, formatDistance, formatSpeed, type NavigationMode, type Telemetry } from '@/lib/navigation';
 import { BODIES, AU_KM, type BodyId, type LayoutMode } from '@/lib/planets';
 import { BLACK_HOLES, SOLAR_HORIZON_RADIUS_KM, type BlackHoleId } from '@/lib/black-holes';
+import type { ShaderQuality } from '@/lib/black-hole-effects';
 import type { Observatory } from '@/lib/observatory';
 
 export default function HomePage() {
@@ -17,6 +18,7 @@ export default function HomePage() {
   const engine = useRef<Observatory | null>(null);
   const [blackHoles, setBlackHoles] = useState(false);
   const [holeId, setHoleId] = useState<BlackHoleId>('sgr');
+  const [shaderQuality, setShaderQuality] = useState<ShaderQuality>('auto');
   const [lensing, setLensing] = useState(true);
   const [disk, setDisk] = useState(true);
   const [guide, setGuide] = useState(false);
@@ -51,6 +53,12 @@ export default function HomePage() {
           onSelect: id => { setSelected(id); setView('Explore'); },
           onError: message => { setStatus(message); setFailed(true); setReady(false); },
         });
+        try {
+          const saved=localStorage.getItem('solar-scale-shader-quality');
+          if(saved && ['auto','low','medium','high','native'].includes(saved)) {
+            setShaderQuality(saved as ShaderQuality);engine.current.setShaderQuality(saved as ShaderQuality);
+          }
+        } catch { /* Storage may be disabled; the control still works. */ }
         const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         if (reduceMotion) { setMotion(false); engine.current.setMotion(false); }
       } catch { setFailed(true); setStatus('This experience needs WebGL 2. Please enable hardware acceleration or try another browser.'); }
@@ -107,6 +115,17 @@ export default function HomePage() {
           <label htmlFor="bh-lensing">Gravitational lensing <Switch id="bh-lensing" checked={lensing} onCheckedChange={v=>{setLensing(v);engine.current?.setLensing(v);}}/></label>
           <label htmlFor="bh-disk">Accretion disk <Switch id="bh-disk" checked={disk} onCheckedChange={v=>{setDisk(v);engine.current?.setDisk(v);}}/></label>
           <label htmlFor="bh-guide">Horizon guide <Switch id="bh-guide" checked={guide} onCheckedChange={v=>{setGuide(v);engine.current?.setHorizonGuide(v);}}/></label>
+        </div>
+        <div className="shader-quality">
+          <label htmlFor="shader-quality">Shader resolution</label>
+          <select id="shader-quality" value={shaderQuality} onChange={event=>{
+            const value=event.target.value as ShaderQuality;setShaderQuality(value);engine.current?.setShaderQuality(value);
+            try { localStorage.setItem('solar-scale-shader-quality',value); } catch { /* Optional preference storage. */ }
+          }}>
+            <option value="auto">Auto · adaptive</option><option value="low">Low · 25%</option><option value="medium">Medium · 50%</option><option value="high">High · 75%</option><option value="native">Native · 100%</option>
+          </select>
+          <small>{telemetry.shader ? `${telemetry.shader.width.toLocaleString()} × ${telemetry.shader.height.toLocaleString()} · ${telemetry.shader.fps ? Math.round(telemetry.shader.fps)+' FPS' : 'Measuring FPS…'}` : 'Measuring resolution…'}</small>
+          <small>{shaderQuality==='auto' ? 'Adjusts resolution toward 60 FPS as you explore.' : 'Fixed resolution. Native is ideal for powerful GPUs and 4K displays.'}</small>
         </div>
         <p className="lens-note">{lensing ? 'The lensed shadow looks larger than the physical horizon.' : 'Straight light paths reveal the physical horizon size.'} Disk appearance and animation are illustrative.</p>
         <div className="hole-actions"><button onClick={()=>engine.current?.inspectBlackHole()}>Inspect black hole ↗</button><button onClick={()=>engine.current?.besideSun()}>Stand beside the Sun ↗</button><button onClick={()=>engine.current?.inspectSolarArcade()}>Inspect the Sun’s corona ↗</button></div>

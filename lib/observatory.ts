@@ -1,5 +1,5 @@
 import { BLACK_HOLES, blackHoleRadius, blackHolePosition, type BlackHoleId } from './black-holes';
-import { createBlackHoleEffects } from './black-hole-effects';
+import { createBlackHoleEffects, type ShaderQuality } from './black-hole-effects';
 import { createSolarEffects } from './solar-effects';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -13,6 +13,7 @@ export interface Observatory {
   selectBlackHole(id: BlackHoleId): void;
   inspectBlackHole(): void;
   besideSun(): void;
+  setShaderQuality(value: ShaderQuality): void;
   setLensing(enabled: boolean): void;
   setDisk(enabled: boolean): void;
   setHorizonGuide(enabled: boolean): void;
@@ -42,7 +43,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#020306');
   const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+  renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -75,6 +76,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   let blackHolesEnabled = false;
   let activeHole: BlackHoleId = 'sgr';
   let lensingEnabled = true, diskEnabled = true, horizonGuide = false;
+  let shaderQuality: ShaderQuality = 'auto';
   let holeEffects: ReturnType<typeof createBlackHoleEffects> | undefined;
   const holeCenter = new THREE.Vector3();
   let holeRadius = blackHoleRadius(4.3e6);
@@ -350,6 +352,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     blackHolesEnabled=enabled;holeLabel.hidden=!enabled;scene.background=new THREE.Color(enabled ? '#000000' : '#020306');
     if(enabled){
       holeEffects ??= createBlackHoleEffects(renderer);
+      holeEffects.setQuality(shaderQuality);
       setLayout('compact');selectBlackHole(activeHole);
       collisionBodies.push(holeCollision);controls.maxDistance=2e9;
       besideSun();
@@ -554,7 +557,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     telemetryTime += dt;
     if (telemetryTime >= 0.12) {
       const reference = bodies.find(b => b.data.id === selected)!;
-      callbacks.onTelemetry({ movingKms, traveledKm, blackHoleKm: blackHolesEnabled ? Math.max(0,camera.position.distanceTo(holeCenter)-holeRadius)*KM_PER_UNIT : undefined,
+      callbacks.onTelemetry({ movingKms, traveledKm, shader: blackHolesEnabled ? holeEffects?.getStats() : undefined, blackHoleKm: blackHolesEnabled ? Math.max(0,camera.position.distanceTo(holeCenter)-holeRadius)*KM_PER_UNIT : undefined,
         gridKm: gridStep * KM_PER_UNIT, referenceKm: camera.position.distanceTo(reference.group.position) * KM_PER_UNIT });
       telemetryTime = 0;
     }
@@ -613,6 +616,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
 
   return {
     setBlackHoles, selectBlackHole, inspectBlackHole, besideSun,
+    setShaderQuality(value) { shaderQuality=value;holeEffects?.setQuality(value); },
     setLensing(value) { lensingEnabled=value; },
     setDisk(value) { diskEnabled=value; },
     setHorizonGuide(value) { horizonGuide=value; },

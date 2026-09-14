@@ -147,7 +147,13 @@ void main(){
 }
 `;
 
+export type ShaderQuality = 'auto' | 'low' | 'medium' | 'high' | 'native';
+
 export function createBlackHoleEffects(renderer: THREE.WebGLRenderer) {
+  let quality: ShaderQuality = 'auto';
+  let autoScale = .5;
+  let lastFrame = 0, sampleMs = 0, samples = 0, fps = 0, cooldown = 0;
+  const scales = { low: .25, medium: .5, high: .75, native: 1 };
   const sceneTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
   sceneTarget.depthTexture = new THREE.DepthTexture(1, 1, THREE.UnsignedIntType);
   const effectTarget = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: false });
@@ -162,12 +168,31 @@ export function createBlackHoleEffects(renderer: THREE.WebGLRenderer) {
   const size = new THREE.Vector2();
   function resize(){
     renderer.getDrawingBufferSize(size);sceneTarget.setSize(size.x,size.y);
-    const scale=Math.min(1,1280/size.x,900/size.y);effectTarget.setSize(Math.round(size.x*scale),Math.round(size.y*scale));
+    const scale = quality === 'auto' ? autoScale : scales[quality];
+    effectTarget.setSize(Math.max(1, Math.round(size.x*scale)), Math.max(1, Math.round(size.y*scale)));
   }
   resize();
   return {
     resize,
+    setQuality(value: ShaderQuality) { quality=value;sampleMs=0;samples=0;lastFrame=0;cooldown=0;resize(); },
+    getStats() { return { width: effectTarget.width, height: effectTarget.height, fps }; },
     render(scene: THREE.Scene, camera: THREE.PerspectiveCamera, center: THREE.Vector3, radius: number, time: number, lensing: boolean, disk: boolean, guide: boolean){
+      const now = performance.now();
+      const frameMs = now-lastFrame;
+      lastFrame=now;
+      // Sample delivered frames, not CPU submission time (GPU work is asynchronous).
+      // Ignore tab suspension and use a wide dead band/cooldown to avoid oscillation.
+      if (!document.hidden && frameMs>0 && frameMs<1000) {
+        sampleMs+=frameMs;samples++;
+        if (sampleMs>=2000) {
+          const average=sampleMs/samples;fps=1000/average;
+          if (quality==='auto' && now>=cooldown) {
+            const next=Math.max(.25,Math.min(1,autoScale+(average>28 ? -.125 : average<19 ? .125 : 0)));
+            if(next!==autoScale){autoScale=next;resize();cooldown=now+5000;}
+          }
+          sampleMs=0;samples=0;
+        }
+      }
       uniforms.eye.value.copy(camera.position).sub(center).divideScalar(radius);
       uniforms.cameraBasis.value.setFromMatrix4(camera.matrixWorld);
       uniforms.aspect.value=camera.aspect;uniforms.tanFov.value=Math.tan(camera.fov*Math.PI/360);

@@ -5,7 +5,7 @@ export const MIN_SPEED = 0.001; // km/s (1 m/s)
 export const MAX_SPEED = 100_000_000_000;
 export const DEFAULT_SPEED = 2_000;
 export type NavigationMode = 'look' | 'orbit';
-export interface Telemetry { gridKm: number; movingKms: number; traveledKm: number; referenceKm: number; blackHoleKm?: number; }
+export interface Telemetry { gridKm: number; movingKms: number; traveledKm: number; referenceKm: number; blackHoleKm?: number; shader?: { width: number; height: number; fps: number }; }
 export function clampSpeed(kms: number) {
   return Number.isFinite(kms) ? Math.max(MIN_SPEED, Math.min(MAX_SPEED, kms)) : DEFAULT_SPEED;
 }
