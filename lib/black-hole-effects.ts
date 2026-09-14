@@ -11,6 +11,8 @@ precision highp float;
 varying vec2 uvScreen;
 uniform sampler2D depthMap, baseMap;
 uniform mat3 cameraBasis;
+uniform vec2 floorPhase;
+uniform float floorGrid;
 uniform vec3 eye;
 uniform float aspect, tanFov, radius, farPlane, time, lensing, diskEnabled, horizonGuide;
 const float PI=3.14159265359;
@@ -49,7 +51,7 @@ Trace traceRay(vec3 p, vec3 rd){
   float impact2=max(0.,dot(p,p)-along*along);
   float floorT=rd.y<-.000001?(-1.-p.y)/rd.y:1.e20;
   // Rays that miss the lens can still reach the floor and reflect into it.
-  if(along<0. || impact2>100.){
+  if(along<0. || impact2>1600.){
     if(floorT>0. && floorT<1.e19){hit.floorHit=true;hit.floorPoint=p+rd*floorT;}
     return hit;
   }
@@ -78,11 +80,19 @@ Trace traceRay(vec3 p, vec3 rd){
     vec3 nv=v+.5*(acc-1.5*h2*next/pow(nr,5.)*lensing)*ds;
     // Sort intersections along this segment. A visible disk crossing must be
     // accumulated BEFORE a later floor hit; never replace it with a reflection.
+    vec3 segment=next-p;
+    float qa=dot(segment,segment),qb=dot(p,segment);
+    float discriminant=qb*qb-qa*(dot(p,p)-1.);
+    float horizonFraction=2.;
+    if(discriminant>=0.) {
+      float t=(-qb-sqrt(discriminant))/qa;
+      if(t>=0. && t<=1.) horizonFraction=t;
+    }
     float floorFraction=2.;
     if(p.y> -1. && next.y<= -1.) floorFraction=(-1.-p.y)/(next.y-p.y);
     if(diskEnabled>.5 && p.y*next.y<0.){
       float diskFraction=p.y/(p.y-next.y);
-      if(diskFraction<floorFraction){
+      if(diskFraction<min(floorFraction,horizonFraction)){
         vec3 crossing=mix(p,next,diskFraction);float cr=length(crossing.xz);
         if(cr>3. && cr<8.){
           hit.light+=hit.transmission*emission(crossing,mix(v,nv,diskFraction));
@@ -90,6 +100,7 @@ Trace traceRay(vec3 p, vec3 rd){
         }
       }
     }
+    if(horizonFraction<=min(1.,floorFraction)){hit.captured=true;break;}
     if(floorFraction<=1.){
       hit.floorHit=true;hit.floorPoint=mix(p,next,floorFraction);
       v=mix(v,nv,floorFraction);break;
@@ -98,6 +109,35 @@ Trace traceRay(vec3 p, vec3 rd){
   }
   hit.direction=normalize(v);
   return hit;
+}
+// Shade the actual ray/floor intersection. Never copy sky from the original
+// screen coordinate into a floor hit. The procedural plane is infinite, unlike
+// the finite Three.js reflector. Reproject only verified visible floor samples
+// to retain the nearby planets' contact shadows and reflections.
+vec3 floorColor(vec3 point){
+  vec2 gridPosition=point.xz/floorGrid+floorPhase;
+  vec2 footprint=max(fwidth(gridPosition),vec2(.0001));
+  vec2 grid=abs(fract(gridPosition-.5)-.5)/footprint;
+  float line=1.-min(min(grid.x,grid.y),1.);
+  float distanceInGrid=length(point.xz-eye.xz)/floorGrid;
+  vec3 color=vec3(.027,.0345,.0465)+vec3(.033,.047,.066)*line*exp(-distanceInGrid*.015);
+  vec3 delta=point-eye;
+  vec3 view=vec3(dot(cameraBasis[0],delta),dot(cameraBasis[1],delta),dot(cameraBasis[2],delta));
+  if(view.z<-.000001){
+    vec2 uv=.5+.5*view.xy/(-view.z*tanFov*vec2(aspect,1.));
+    if(all(greaterThan(uv,vec2(0.))) && all(lessThan(uv,vec2(1.)))){
+      float depth=texture2D(depthMap,uv).x;
+      float z=(exp2(depth*log2(farPlane+1.))-1.)/radius;
+      // Only reuse the base when its depth is this same floor point, not sky
+      // or a foreground planet. Blend at viewport edges to avoid a new seam.
+      if(depth<.999999 && abs(z+view.z)<max(.000001,-view.z*.001)){
+        vec2 edge=min(uv,1.-uv);
+        float blend=smoothstep(0.,.035,min(edge.x,edge.y));
+        color=mix(color,texture2D(baseMap,uv).rgb,blend);
+      }
+    }
+  }
+  return color;
 }
 void main(){
   vec2 xy=(uvScreen*2.-1.)*vec2(aspect,1.)*tanFov;
@@ -113,9 +153,9 @@ void main(){
   if(depth<.999999 && sceneDistance<max(0.,closest-1.) && !isFloor){gl_FragColor=vec4(0.);return;}
   Trace primary=traceRay(eye,rd);
   vec3 light=primary.light;
-  float baseWeight=0.;
+  vec3 groundColor=vec3(0.);
   if(primary.floorHit){
-    baseWeight=primary.transmission;
+    groundColor=floorColor(primary.floorPoint)*primary.transmission;
     // Reflection is a secondary ray, attenuated by both the floor and every
     // disk crossing on the primary path. It cannot overwrite primary emission.
     vec3 bounce=reflect(primary.direction,vec3(0.,1.,0.));
@@ -126,14 +166,14 @@ void main(){
     light+=sky(primary.direction)*primary.transmission;
   }
   vec3 result=1.-exp(-light*1.3);
-  result+=texture2D(baseMap,uvScreen).rgb*baseWeight;
+  result+=groundColor;
   if(horizonGuide>.5){
     float impact2=max(0.,dot(eye,eye)-closest*closest);
     float b=sqrt(impact2);float line=1.-smoothstep(.003+fwidth(b),.006+fwidth(b)*2.,abs(b-1.));
     if(closest>0.)result=mix(result,vec3(.28,.72,1.),line*.9);
   }
   // Preserve the full-resolution base when there is no hole, disk or reflection.
-  float alpha=(!primary.captured && length(light)<.0001 && depth<.999999 && horizonGuide<.5)?0.:1.;
+  float alpha=(!primary.captured && !primary.floorHit && length(light)<.0001 && depth<.999999 && horizonGuide<.5)?0.:1.;
   gl_FragColor=vec4(result,alpha);
 }
 `;
@@ -148,7 +188,7 @@ export function createBlackHoleEffects(renderer: THREE.WebGLRenderer) {
   const sceneTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
   sceneTarget.depthTexture = new THREE.DepthTexture(1, 1, THREE.UnsignedIntType);
   const effectTarget = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: false });
-  const uniforms = { baseMap: { value: sceneTarget.texture }, depthMap: { value: sceneTarget.depthTexture }, cameraBasis: { value: new THREE.Matrix3() }, eye: { value: new THREE.Vector3() }, aspect: { value: 1 }, tanFov: { value: 1 }, radius: { value: 1 }, farPlane: { value: 1e10 }, time: { value: 0 }, lensing: { value: 1 }, diskEnabled: { value: 1 }, horizonGuide: { value: 0 } };
+  const uniforms = { floorGrid: { value: 1 }, floorPhase: { value: new THREE.Vector2() }, baseMap: { value: sceneTarget.texture }, depthMap: { value: sceneTarget.depthTexture }, cameraBasis: { value: new THREE.Matrix3() }, eye: { value: new THREE.Vector3() }, aspect: { value: 1 }, tanFov: { value: 1 }, radius: { value: 1 }, farPlane: { value: 1e10 }, time: { value: 0 }, lensing: { value: 1 }, diskEnabled: { value: 1 }, horizonGuide: { value: 0 } };
   const material = new THREE.ShaderMaterial({ vertexShader, fragmentShader, uniforms, depthTest: false, depthWrite: false, toneMapped: false });
   const plane = new THREE.PlaneGeometry(2, 2);
   const passScene = new THREE.Scene();
@@ -184,6 +224,9 @@ export function createBlackHoleEffects(renderer: THREE.WebGLRenderer) {
           sampleMs=0;samples=0;
         }
       }
+      const gridStep=Math.max(20,5*10**Math.floor(Math.log10(Math.max(1,camera.position.y))));
+      uniforms.floorGrid.value=gridStep/radius;
+      uniforms.floorPhase.value.set((center.x/gridStep)%1,(center.z/gridStep)%1);
       uniforms.eye.value.copy(camera.position).sub(center).divideScalar(radius);
       uniforms.cameraBasis.value.setFromMatrix4(camera.matrixWorld);
       uniforms.aspect.value=camera.aspect;uniforms.tanFov.value=Math.tan(camera.fov*Math.PI/360);
