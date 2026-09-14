@@ -284,3 +284,6 @@ kbd { font-family: var(--font-geist-mono),monospace; color: #b7cbe2; }
  .touch-movement button { flex: 1; background: #9ac3ef17; color: #cfdef1; border: 1px solid #9ac3ef26; height: 34px; border-radius: 4px; touch-action: none; user-select: none; }
  .view-tools { right: auto; left: 15px; bottom: 157px; flex-direction: column; }
 }
+
+.world-label { transition: opacity 180ms ease; will-change: transform; }
+@media (prefers-reduced-motion: reduce) { .world-label { transition: none; } }

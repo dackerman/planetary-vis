@@ -71,7 +71,6 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   let labelsEnabled = true;
   let animationId = 0;
   let elapsed = 0;
-  let frame = 0;
   const textures: THREE.Texture[] = [];
   const manager = new THREE.LoadingManager();
   const loader = new THREE.TextureLoader(manager);
@@ -469,19 +468,19 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
       telemetryTime = 0;
     }
     renderer.render(scene, camera);
-    if (++frame % 4 !== 0) return;
-    const occupied: { x: number; y: number }[] = [];
+    // Project labels with the same camera on every rendered frame.
     for (const body of bodies) {
       const anchor = body.group.position.clone().add(new THREE.Vector3(0, body.height + body.radius * 0.13, 0));
       projected.copy(anchor).project(camera);
-      let visible = labelsEnabled && projected.z > -1 && projected.z < 1 && Math.abs(projected.x) < 0.92 && projected.y < 0.78 && projected.y > -0.52;
+      let visible = labelsEnabled && projected.z > -1 && projected.z < 1 && Math.abs(projected.x) < 1.15 && Math.abs(projected.y) < 1.15;
       const x = (projected.x * 0.5 + 0.5) * container.clientWidth;
-      const tiny = body.radius / camera.position.distanceTo(body.group.position) < 0.004;
-      const stem = layout === 'distances' && tiny ? (body.data.id === 'sun' ? 4 : bodies.indexOf(body) % 4) * 44 + 18 : 0;
+      const angularRadius = body.radius / camera.position.distanceTo(body.group.position);
+      const distantBlend = 1 - THREE.MathUtils.smoothstep(angularRadius, 0.002, 0.008);
+      const stem = layout === 'distances' ? distantBlend * ((body.data.id === 'sun' ? 4 : bodies.indexOf(body) % 4) * 44 + 18) : 0;
       const y = (-projected.y * 0.5 + 0.5) * container.clientHeight - stem;
       body.label.style.setProperty('--stem-height', `${stem}px`);
       body.label.classList.toggle('distant-marker', stem > 0);
-      if (tiny && layout !== 'distances') visible = false;
+      const sizeOpacity = layout === 'distances' ? 1 : THREE.MathUtils.smoothstep(angularRadius, 0.002, 0.005);
       if (visible) {
         const distance = anchor.distanceTo(camera.position);
         ray.set(camera.position, direction.copy(anchor).sub(camera.position).normalize());
@@ -494,10 +493,13 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
             if (hit.distanceTo(camera.position) < distance) { visible = false; break; }
           }
         }
-        if (occupied.some(p => Math.abs(p.x - x) < 115 && Math.abs(p.y - y) < 42)) visible = false;
       }
-      body.label.hidden = !visible;
-      if (visible) { occupied.push({x,y}); body.label.style.transform = `translate(${x}px,${y}px) translate(-50%,-100%)`; }
+      // Fade occlusion changes, but never interpolate position: that would lag behind the planet.
+      body.label.style.opacity = String(visible ? sizeOpacity : 0);
+      body.label.style.pointerEvents = visible && sizeOpacity > 0.5 ? 'auto' : 'none';
+      body.label.setAttribute('aria-hidden', String(!visible || sizeOpacity < 0.5));
+      body.label.tabIndex = visible && sizeOpacity > 0.5 ? 0 : -1;
+      if (projected.z > -1 && projected.z < 1) body.label.style.transform = `translate3d(${x}px,${y}px,0) translate(-50%,-100%)`;
     }
   }
   animate();
