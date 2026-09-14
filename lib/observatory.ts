@@ -1,17 +1,25 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
-import { BODIES, bodyDimensions, type BodyId } from './planets';
+import { BODIES, bodyDimensions, bodyPosition, KM_PER_UNIT, type BodyId, type LayoutMode } from './planets';
+import { DEFAULT_SPEED, clampSpeed, movementDelta, safeMovement, type NavigationMode, type Telemetry } from './navigation';
 
 export interface Observatory {
   focus(id: BodyId): void;
   overview(): void;
   zoom(factor: number): void;
+  setLayout(layout: LayoutMode): void;
+  setNavigation(mode: NavigationMode): void;
+  setSpeed(kms: number): void;
+  setMovementKey(code: string, pressed: boolean): void;
   setLabels(enabled: boolean): void;
   setMotion(enabled: boolean): void;
   dispose(): void;
 }
 interface Callbacks {
+  onTelemetry(value: Telemetry): void;
+  onSpeed(value: number): void;
+  onNavigation(value: NavigationMode): void;
   onReady(): void;
   onProgress(message: string): void;
   onSelect(id: BodyId): void;
@@ -28,10 +36,10 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   renderer.domElement.tabIndex = 0;
-  renderer.domElement.setAttribute('aria-label', '3D scene. Arrow keys orbit. Plus and minus zoom. Home returns to Earth.');
+  renderer.domElement.setAttribute('aria-label', '3D scene. WASD moves, Q and E change altitude. Drag to look. Brackets change speed. Home returns to Earth.');
   container.appendChild(renderer.domElement);
 
-  const camera = new THREE.PerspectiveCamera(46, container.clientWidth / container.clientHeight, 0.005, 30000);
+  const camera = new THREE.PerspectiveCamera(46, container.clientWidth / container.clientHeight, 0.005, 100_000_000);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.075;
@@ -52,6 +60,12 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   sunLight.position.set(-115, 109, -255);
   scene.add(sunLight);
 
+  let layout: LayoutMode = 'compact';
+  let navigation: NavigationMode = 'look';
+  let selected: BodyId = 'earth';
+  let speedKms = DEFAULT_SPEED;
+  let traveledKm = 0;
+  let telemetryTime = 0;
   let disposed = false;
   let motion = true;
   let labelsEnabled = true;
@@ -144,14 +158,14 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
 
   // Perspective-correct planar reflection, darkened to resemble polished obsidian.
   const reflectionShader = {
-    uniforms: { color: { value: new THREE.Color(0x151a22) }, tDiffuse: { value: null }, textureMatrix: { value: new THREE.Matrix4() }, bodies: { value: bodies.map(b => new THREE.Vector4(b.data.x, b.data.z, b.radius, b.height)) } },
+    uniforms: { gridStep: { value: 20 }, color: { value: new THREE.Color(0x151a22) }, tDiffuse: { value: null }, textureMatrix: { value: new THREE.Matrix4() }, bodies: { value: bodies.map(b => new THREE.Vector4(b.data.x, b.data.z, b.radius, b.height)) } },
     vertexShader: `uniform mat4 textureMatrix; varying vec4 vUv; varying vec3 world;
       #include <common>
       #include <logdepthbuf_pars_vertex>
       void main(){vUv=textureMatrix*vec4(position,1.); world=(modelMatrix*vec4(position,1.)).xyz; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
       #include <logdepthbuf_vertex>
       }`,
-    fragmentShader: `uniform sampler2D tDiffuse; uniform vec4 bodies[9]; varying vec4 vUv; varying vec3 world;
+    fragmentShader: `uniform sampler2D tDiffuse; uniform float gridStep; uniform vec4 bodies[9]; varying vec4 vUv; varying vec3 world;
       #include <common>
       #include <logdepthbuf_pars_fragment>
       void main(){
@@ -171,13 +185,13 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
         float line=1.-min(min(grid.x,grid.y),1.);
         float groundDistance=length(world.xz-cameraPosition.xz);
         float gridFade=exp(-groundDistance*.018);
-        vec2 majorGrid=abs(fract(world.xz/20.-.5)-.5)/max(fwidth(world.xz/20.),vec2(.0001));
+        vec2 majorGrid=abs(fract(world.xz/gridStep-.5)-.5)/max(fwidth(world.xz/gridStep),vec2(.0001));
         float majorLine=1.-min(min(majorGrid.x,majorGrid.y),1.);
-        ground+=vec3(.033,.047,.066)*(line*.65*gridFade+majorLine*exp(-groundDistance*.0015))*(1.-shadow);
+        ground+=vec3(.033,.047,.066)*(line*.65*gridFade+majorLine*exp(-groundDistance/gridStep*.015))*(1.-shadow);
         // The broad light gradient and two grid scales keep the shared plane readable
         // both beside Earth and when the camera is hundreds of Earth radii away.
         ground*=mix(.75,1.,exp(-groundDistance*.001));
-        gl_FragColor=vec4(ground+reflection*(.30+.25*grazing)*(1.-shadow*.45),1.);
+        gl_FragColor=vec4(ground+reflection*(.09+.12*grazing)*(1.-shadow*.45),1.);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
@@ -205,7 +219,10 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     fragmentShader: `uniform float time;varying float p;void main(){float d=length(gl_PointCoord-.5);float a=(1.-smoothstep(.12,.5,d))*(.35+.5*(.5+.5*sin(time*(.35+fract(p)) + p)));gl_FragColor=vec4(mix(vec3(.7,.8,1.),vec3(1.,.9,.75),fract(p)),a);}`,
     transparent: true, depthWrite: false,
   });
-  scene.add(new THREE.Points(starGeometry, starsMaterial));
+  const stars = new THREE.Points(starGeometry, starsMaterial);
+  stars.scale.setScalar(1000);
+  stars.frustumCulled = false;
+  scene.add(stars);
 
   // All custom materials share logarithmic depth with the planetary surfaces.
   scene.traverse(object => {
@@ -233,6 +250,8 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     transition = { from: camera.position.clone(), to: position, targetFrom: controls.target.clone(), targetTo: target, start: performance.now(), duration: motion ? 1800 : 0 };
   }
   function focus(id: BodyId) {
+    selected = id;
+    keys.clear();
     const body = bodies.find(b => b.data.id === id)!;
     controls.minDistance = body.radius * 1.13;
     const frame = framePosition(id);
@@ -241,34 +260,141 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   function overview() {
     controls.minDistance = 1;
     const aspect = container.clientWidth / container.clientHeight;
-    travel(new THREE.Vector3(130, 230, Math.max(365, 410 / aspect)), new THREE.Vector3(-50, 65, -125));
+    if (layout === 'distances') {
+      const span = BODIES.find(b => b.id === 'neptune')!.orbitKm / KM_PER_UNIT;
+      travel(new THREE.Vector3(span / 2, span * 0.35, span * Math.max(1.5, 1.5 / aspect)), new THREE.Vector3(span / 2, 0, 0));
+    } else {
+      travel(new THREE.Vector3(130, 230, Math.max(365, 410 / aspect)), new THREE.Vector3(-50, 65, -125));
+    }
   }
   function zoom(factor: number) {
     transition = null;
     const offset = camera.position.clone().sub(controls.target);
+    if (navigation === 'look') {
+      const delta = camera.getWorldDirection(new THREE.Vector3()).multiplyScalar((1 - factor) * Math.min(offset.length(), 1000));
+      const safe = safeMovement(camera.position, delta, collisionBodies);
+      camera.position.add(safe); controls.target.add(safe);
+      return;
+    }
     offset.setLength(THREE.MathUtils.clamp(offset.length() * factor, controls.minDistance, controls.maxDistance));
     camera.position.copy(controls.target).add(offset);
     controls.update();
   }
+  const collisionBodies = bodies.map(b => ({ position: b.group.position, radius: b.radius, height: b.height }));
   const opening = framePosition('earth');
   camera.position.copy(opening.position);
   controls.target.copy(opening.target);
   controls.update();
+  controls.enabled = false;
   const cancelTravel = () => { transition = null; };
   controls.addEventListener('start', cancelTravel);
   const keys = new Set<string>();
-  function keyDown(event: KeyboardEvent) {
-    if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','+','=','-','Home'].includes(event.key)) event.preventDefault();
-    keys.add(event.key);
-    if (event.key === '+' || event.key === '=') zoom(0.85);
-    if (event.key === '-') zoom(1.18);
-    if (event.key === 'Home') { focus('earth'); callbacks.onSelect('earth'); }
+  let lastMovementAt = performance.now();
+  let movingKms = 0;
+  function integrateMovement(now: number) {
+    const movementDt = Math.min(Math.max(0, (now - lastMovementAt) / 1000), 0.25);
+    lastMovementAt = now;
+    if (movementDt === 0) return;
+    const delta = movementDelta(keys, camera.getWorldDirection(new THREE.Vector3()), speedKms, movementDt);
+    const movement = safeMovement(camera.position, delta, collisionBodies);
+    camera.position.add(movement);
+    controls.target.add(movement);
+    const movedKm = movement.length() * KM_PER_UNIT;
+    traveledKm += movedKm;
+    movingKms = movedKm / movementDt;
   }
-  const keyUp = (event: KeyboardEvent) => keys.delete(event.key);
+  const movementCodes = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE']);
+  function setSpeed(value: number) {
+    speedKms = clampSpeed(value);
+    callbacks.onSpeed(speedKms);
+  }
+  function setNavigation(value: NavigationMode) {
+    navigation = value;
+    controls.enabled = value === 'orbit';
+    callbacks.onNavigation(value);
+  }
+  function setLayout(value: LayoutMode) {
+    layout = value;
+    transition = null;
+    keys.clear();
+    traveledKm = 0;
+    bodies.forEach((body, i) => {
+      const p = bodyPosition(body.data, value);
+      body.group.position.set(p.x, body.height, p.z);
+      (floor.material as THREE.ShaderMaterial).uniforms.bodies.value[i].set(p.x, p.z, body.radius, body.height);
+    });
+    controls.maxDistance = value === 'distances' ? 6_000_000 : 2000;
+    const frame = framePosition(selected);
+    camera.position.copy(frame.position);
+    controls.target.copy(frame.target);
+    camera.lookAt(controls.target);
+  }
+  function setMovementKey(code: string, pressed: boolean) {
+    // Integrate at input boundaries too, so quick taps between animation frames
+    // move for their actual duration instead of being silently discarded.
+    integrateMovement(performance.now());
+    if (pressed) {
+      transition = null;
+      if (movementCodes.has(code) && navigation !== 'look') setNavigation('look');
+      keys.add(code);
+    } else keys.delete(code);
+  }
+  function keyDown(event: KeyboardEvent) {
+    const element = event.target instanceof Element ? event.target : null;
+    if (element?.closest('input, textarea, select, [contenteditable="true"], [role="slider"], [role="dialog"]') || document.querySelector('[role="dialog"]')) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    const supported = [...movementCodes, 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'BracketLeft', 'BracketRight', 'Equal', 'Minus', 'Home'];
+    if (!supported.includes(event.code)) return;
+    event.preventDefault();
+    if (movementCodes.has(event.code) || event.code.startsWith('Arrow')) setMovementKey(event.code, true);
+    if (event.code === 'BracketLeft') setSpeed(speedKms / 2);
+    if (event.code === 'BracketRight') setSpeed(speedKms * 2);
+    if (event.code === 'Equal') zoom(0.85);
+    if (event.code === 'Minus') zoom(1.18);
+    if (event.code === 'Home') { focus('earth'); callbacks.onSelect('earth'); }
+  }
+  const keyUp = (event: KeyboardEvent) => setMovementKey(event.code, false);
   const blur = () => keys.clear();
-  renderer.domElement.addEventListener('keydown', keyDown);
-  renderer.domElement.addEventListener('keyup', keyUp);
-  renderer.domElement.addEventListener('blur', blur);
+  const visibility = () => { if (document.hidden) keys.clear(); };
+  window.addEventListener('keydown', keyDown);
+  window.addEventListener('keyup', keyUp);
+  window.addEventListener('blur', blur);
+  document.addEventListener('visibilitychange', visibility);
+  let dragging = false;
+  let lastPointerX = 0, lastPointerY = 0;
+  const lookEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+  function look(dx: number, dy: number) {
+    transition = null;
+    const distance = Math.max(1, Math.min(camera.position.distanceTo(controls.target), 1000));
+    lookEuler.setFromQuaternion(camera.quaternion, 'YXZ');
+    lookEuler.y -= dx;
+    lookEuler.x = THREE.MathUtils.clamp(lookEuler.x - dy, -Math.PI / 2 + 0.02, Math.PI / 2 - 0.02);
+    camera.quaternion.setFromEuler(lookEuler);
+    controls.target.copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(distance));
+  }
+  function pointerDown(event: PointerEvent) {
+    if (navigation !== 'look' || event.button !== 0) return;
+    renderer.domElement.focus({ preventScroll: true });
+    dragging = true; lastPointerX = event.clientX; lastPointerY = event.clientY;
+    renderer.domElement.setPointerCapture(event.pointerId);
+  }
+  function pointerMove(event: PointerEvent) {
+    if (!dragging || navigation !== 'look') return;
+    look((event.clientX - lastPointerX) * 0.0025, (event.clientY - lastPointerY) * 0.0025);
+    lastPointerX = event.clientX; lastPointerY = event.clientY;
+  }
+  const pointerUp = () => { dragging = false; };
+  function wheel(event: WheelEvent) {
+    if (navigation !== 'look') return;
+    event.preventDefault();
+    zoom(Math.exp(THREE.MathUtils.clamp(event.deltaY * 0.001, -0.4, 0.4)));
+  }
+  renderer.domElement.addEventListener('pointerdown', pointerDown);
+  renderer.domElement.addEventListener('pointermove', pointerMove);
+  renderer.domElement.addEventListener('pointerup', pointerUp);
+  renderer.domElement.addEventListener('pointercancel', pointerUp);
+  renderer.domElement.addEventListener('lostpointercapture', pointerUp);
+  renderer.domElement.addEventListener('wheel', wheel, { passive: false });
   const contextLost = (event: Event) => { event.preventDefault(); callbacks.onError('The graphics connection was interrupted. Reload to reopen the observatory.'); };
   renderer.domElement.addEventListener('webglcontextlost', contextLost);
 
@@ -304,12 +430,18 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     }
     if (keys.has('ArrowLeft') || keys.has('ArrowRight') || keys.has('ArrowUp') || keys.has('ArrowDown')) {
       transition = null;
+      if (navigation === 'look') {
+        look(((keys.has('ArrowRight') ? 1 : 0) - (keys.has('ArrowLeft') ? 1 : 0)) * dt,
+          ((keys.has('ArrowDown') ? 1 : 0) - (keys.has('ArrowUp') ? 1 : 0)) * dt);
+      } else {
       spherical.setFromVector3(offset.copy(camera.position).sub(controls.target));
       spherical.theta += ((keys.has('ArrowLeft') ? 1 : 0) - (keys.has('ArrowRight') ? 1 : 0)) * dt;
       spherical.phi = THREE.MathUtils.clamp(spherical.phi + ((keys.has('ArrowDown') ? 1 : 0) - (keys.has('ArrowUp') ? 1 : 0)) * dt, 0.03, Math.PI * 0.5);
       camera.position.copy(controls.target).add(offset.setFromSpherical(spherical));
+      }
     }
-    controls.update();
+    if (navigation === 'orbit') controls.update();
+    integrateMovement(performance.now());
     // Keep navigation above the plane and outside every actual ellipsoid.
     for (const body of bodies) {
       offset.copy(camera.position).sub(body.group.position).divide(new THREE.Vector3(body.radius, body.height, body.radius));
@@ -324,16 +456,32 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     camera.lookAt(controls.target);
     camera.updateMatrixWorld();
     starsMaterial.uniforms.time.value = elapsed;
+    stars.position.copy(camera.position);
+    floor.position.set(camera.position.x, 0, camera.position.z);
+    floor.scale.setScalar(Math.max(1, camera.position.y / 120));
+    const gridStep = Math.max(20, 5 * 10 ** Math.floor(Math.log10(Math.max(1, camera.position.y))));
+    (floor.material as THREE.ShaderMaterial).uniforms.gridStep.value = gridStep;
+    telemetryTime += dt;
+    if (telemetryTime >= 0.12) {
+      const reference = bodies.find(b => b.data.id === selected)!;
+      callbacks.onTelemetry({ movingKms, traveledKm,
+        gridKm: gridStep * KM_PER_UNIT, referenceKm: camera.position.distanceTo(reference.group.position) * KM_PER_UNIT });
+      telemetryTime = 0;
+    }
     renderer.render(scene, camera);
     if (++frame % 4 !== 0) return;
     const occupied: { x: number; y: number }[] = [];
     for (const body of bodies) {
-      const anchor = new THREE.Vector3(body.data.x, body.height * 2 + body.radius * 0.13, body.data.z);
+      const anchor = body.group.position.clone().add(new THREE.Vector3(0, body.height + body.radius * 0.13, 0));
       projected.copy(anchor).project(camera);
       let visible = labelsEnabled && projected.z > -1 && projected.z < 1 && Math.abs(projected.x) < 0.92 && projected.y < 0.78 && projected.y > -0.52;
       const x = (projected.x * 0.5 + 0.5) * container.clientWidth;
-      const y = (-projected.y * 0.5 + 0.5) * container.clientHeight;
-      if (body.radius / camera.position.distanceTo(body.group.position) < 0.004) visible = false;
+      const tiny = body.radius / camera.position.distanceTo(body.group.position) < 0.004;
+      const stem = layout === 'distances' && tiny ? (body.data.id === 'sun' ? 4 : bodies.indexOf(body) % 4) * 44 + 18 : 0;
+      const y = (-projected.y * 0.5 + 0.5) * container.clientHeight - stem;
+      body.label.style.setProperty('--stem-height', `${stem}px`);
+      body.label.classList.toggle('distant-marker', stem > 0);
+      if (tiny && layout !== 'distances') visible = false;
       if (visible) {
         const distance = anchor.distanceTo(camera.position);
         ray.set(camera.position, direction.copy(anchor).sub(camera.position).normalize());
@@ -355,16 +503,23 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   animate();
 
   return {
-    focus, overview, zoom,
+    focus, overview, zoom, setLayout, setNavigation, setSpeed, setMovementKey,
     setLabels(value) { labelsEnabled = value; labelLayer.hidden = !value; },
     setMotion(value) { motion = value; },
     dispose() {
       disposed = true;
       cancelAnimationFrame(animationId);
       resize.disconnect(); controls.dispose();
-      renderer.domElement.removeEventListener('keydown', keyDown);
-      renderer.domElement.removeEventListener('keyup', keyUp);
-      renderer.domElement.removeEventListener('blur', blur);
+      window.removeEventListener('keydown', keyDown);
+      window.removeEventListener('keyup', keyUp);
+      window.removeEventListener('blur', blur);
+      document.removeEventListener('visibilitychange', visibility);
+      renderer.domElement.removeEventListener('pointerdown', pointerDown);
+      renderer.domElement.removeEventListener('pointermove', pointerMove);
+      renderer.domElement.removeEventListener('pointerup', pointerUp);
+      renderer.domElement.removeEventListener('pointercancel', pointerUp);
+      renderer.domElement.removeEventListener('lostpointercapture', pointerUp);
+      renderer.domElement.removeEventListener('wheel', wheel);
       renderer.domElement.removeEventListener('webglcontextlost', contextLost);
       scene.traverse(object => {
         if (object instanceof THREE.Mesh || object instanceof THREE.Points) {

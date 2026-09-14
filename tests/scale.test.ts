@@ -19,13 +19,28 @@ test('one linear kilometer scale preserves Earth, Jupiter, and Sun dimensions', 
   }
 });
 
-test('exhibition placement keeps all bodies and the main Saturn rings separate', () => {
+test('compact 3D placement clears every surface while allowing the Sun to overhang', () => {
   for (let i = 0; i < BODIES.length; i++) {
     for (let j = i + 1; j < BODIES.length; j++) {
       const a = BODIES[i], b = BODIES[j];
-      const ra = a.id === 'saturn' ? 136775 / KM_PER_UNIT : bodyDimensions(a).radius;
-      const rb = b.id === 'saturn' ? 136775 / KM_PER_UNIT : bodyDimensions(b).radius;
-      assert.ok(Math.hypot(a.x - b.x, a.z - b.z) > ra + rb, `${a.name} overlaps ${b.name}`);
+      const da = bodyDimensions(a), db = bodyDimensions(b);
+      const separation = Math.hypot(a.x - b.x, a.z - b.z, da.height - db.height);
+      // Bounding spheres are conservative for the oblate planet bodies.
+      assert.ok(separation > da.radius + db.radius + 0.2, `${a.name} overlaps ${b.name}`);
     }
   }
+  const saturn = BODIES.find(b => b.id === 'saturn')!;
+  const ringHeight = bodyDimensions(saturn).height;
+  for (const body of BODIES) {
+    if (body.id === 'saturn') continue;
+    const d = bodyDimensions(body);
+    const verticalGap = Math.abs(d.height - ringHeight);
+    if (verticalGap >= d.radius) continue;
+    const crossSection = Math.sqrt(d.radius ** 2 - verticalGap ** 2);
+    assert.ok(Math.hypot(body.x - saturn.x, body.z - saturn.z) > 136775 / KM_PER_UNIT + crossSection + 0.2,
+      `${body.name} intersects Saturn's rings`);
+  }
+  const sun = BODIES.find(b => b.id === 'sun')!;
+  const jupiter = BODIES.find(b => b.id === 'jupiter')!;
+  assert.ok(Math.hypot(jupiter.x - sun.x, jupiter.z - sun.z) < bodyDimensions(sun).radius);
 });

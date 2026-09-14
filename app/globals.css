@@ -228,3 +228,59 @@ i { width: 2px; height: 2px; background: currentColor; border-radius: 50%; displ
 /* Leave the contact points and floor visible above the navigation. */
 .vignette { background: linear-gradient(90deg,rgba(2,4,8,.4),transparent 30%),linear-gradient(0deg,#05080da6,transparent 22%,transparent 88%,#02040755); }
 @media (max-width:700px) { .vignette { background: linear-gradient(0deg,#03060aa6,transparent 23%,transparent 70%,#03060a99); } }
+.layout-controls { position: absolute; top: 28px; left: 50%; transform: translateX(-50%); text-align: center; }
+.segmented { display: flex; padding: 4px; gap: 3px; border: 1px solid #9dbddd28; border-radius: 9px; background: #0b121dde; backdrop-filter: blur(16px); }
+.segmented button { padding: 8px 16px; height: auto; min-height: 34px; font-size: 13px; font-weight: 400; color: #8d9caf; border-radius: 5px; white-space: nowrap; }
+.segmented button[data-pressed] { background: #9ac3ef23; color: #d7e9ff; }
+.layout-controls p { color: #95a4b6; font-size: 11px; margin-top: 8px; text-shadow: 0 1px 6px #000; }
+.travel-panel { position: absolute; top: 145px; right: 40px; width: 264px; padding: 18px; border: 1px solid #98b9df24; border-radius: 11px; background: #0a111bdd; backdrop-filter: blur(16px); box-shadow: 0 8px 30px #0002; }
+.travel-panel-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.travel-panel .eyebrow { font-size: 10px; }
+.moving-status { color: #728195; font: 9px var(--font-geist-mono),monospace; }
+.moving-status.moving { color: #9eceb9; }
+.speed-readout { display: flex; align-items: center; justify-content: space-between; margin: 13px 0 18px; gap: 8px; }
+.speed-readout strong { font-size: 18px; line-height: 1.3; font-weight: 400; letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
+.speed-buttons { display: flex; gap: 3px; }
+.speed-buttons button { border: 1px solid #ffffff1a; border-radius: 5px; background: #ffffff06; display: grid; place-items: center; height: 28px; width: 28px; color: #c4d7ec; }
+.speed-presets { display: flex; gap: 5px; justify-content: space-between; margin: 15px 0 14px; }
+.speed-presets button { border: 0; border-bottom: 1px solid #8cb2dc40; padding: 3px 0; background: transparent; color: #9db8d8; font-size: 10px; }
+.look-modes { width: 100%; margin-bottom: 16px; }
+.look-modes button { flex: 1; font-size: 12px; padding: 6px 9px; min-height: 28px; }
+.odometer { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 10px; color: #8494a8; margin-top: 9px; }
+.odometer output { color: #c3d0e0; text-align: right; font-variant-numeric: tabular-nums; }
+.travel-keys { font-size: 11px; line-height: 1.9; margin-top: 16px; color: #8293a7; }
+kbd { font-family: var(--font-geist-mono),monospace; color: #b7cbe2; }
+.solar-distance { margin-top: 19px; font-size: 15px; color: #bbcce0; }
+.solar-distance small { display: block; font-size: 12px; margin-top: 4px; color: #8293a7; }
+.view-tools { top: auto; bottom: 214px; right: 40px; }
+.touch-movement { display: none; }
+.distant-marker::after { content: ''; position: absolute; top: 100%; left: 50%; width: 1px; height: var(--stem-height); background: #afc8e048; pointer-events: none; }
+@media (max-width: 1100px) { .scale-badge { display: none; } .travel-panel { right: 23px; width: 235px; top: 128px; padding: 15px; } .speed-readout strong { font-size: 16px; } .view-tools { right: 23px; bottom: 203px; } }
+@media (max-height: 850px) and (min-width:701px) { .travel-panel { top: 115px; } .view-tools { flex-direction: row; bottom: 200px; } .view-tools .tool-divider { width: 1px; height: 20px; } .planet-info { top: 24%; } }
+@media (max-width:700px) {
+ .layout-controls { top: 80px; width: max-content; max-width: calc(100% - 30px); }
+ .layout-controls .segmented { margin-inline: auto; }
+ .layout-controls p { font-size: 9px; max-width: 280px; }
+ .layout-controls .segmented button { font-size: 12px; padding: 5px 12px; min-height: 29px; }
+ .planet-info { top: 167px; left: 20px; width: 180px; }
+ .planet-info h1 { font-size: 30px; }
+ .planet-info .metrics { flex-direction: column; gap: 8px; }
+ .planet-info .metrics > div:last-child { display: none; }
+ .planet-info .eyebrow { font-size: 8px; }
+ .solar-distance { font-size: 12px; margin-top: 10px; }
+ .solar-distance small { font-size: 10px; }
+ .travel-panel { top: auto; right: 15px; bottom: 153px; width: 193px; padding: 12px; }
+ .travel-panel .eyebrow { font-size: 9px; }
+ .speed-readout { margin: 7px 0 14px; }
+ .speed-readout strong { font-size: 13px; }
+ .speed-buttons button { width: 23px; height: 25px; }
+ .speed-presets { gap: 6px; margin: 12px 0 10px; }
+ .speed-presets button { font-size: 9px; }
+ .look-modes { margin-bottom: 10px; }
+ .look-modes button { min-height: 25px; font-size: 10px; padding: 3px 8px; }
+ .travel-keys { display: none; }
+ .odometer { font-size: 9px; }
+ .touch-movement { display: flex; gap: 5px; margin-top: 12px; }
+ .touch-movement button { flex: 1; background: #9ac3ef17; color: #cfdef1; border: 1px solid #9ac3ef26; height: 34px; border-radius: 4px; touch-action: none; user-select: none; }
+ .view-tools { right: auto; left: 15px; bottom: 157px; flex-direction: column; }
+}
