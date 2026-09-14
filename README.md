@@ -20,6 +20,22 @@ Planetary Vis is an interactive Three.js exhibit of the Sun and all eight planet
 
 *The arcade close-up shows field-shaped strands, bright footpoints, and uneven emission. Orange colouring and brightness are enhanced for visibility, inspired by ultraviolet solar observations.*
 
+## Black holes
+
+Choose **Black holes** at the top to stand beside the detailed Sun with Sagittarius A* in the distance. All planets remain available in the lower dock. Choose **Inspect black hole**, **Smaller / Larger**, or any of the seven catalog entries to move from stellar to ultramassive scales.
+
+![The detailed Sun in front of Sagittarius A*, with a lensed accretion disk and a shared reflective floor](docs/images/sun-and-black-hole.png)
+
+The catalog contains XTE J1650−500, Cygnus X-1, GW190521’s remnant, RGG 118, Sagittarius A*, M87*, and TON 618. Each entry links to its mass source. XTE’s small-end estimate and TON 618’s large-end estimate are explicitly qualified; these are not definitive smallest/largest record claims.
+
+- **Horizon size:** `2GM/c²`, using the IAU nominal solar mass parameter and exact speed of light. This is the nonrotating equivalent for each estimated mass, on the existing kilometer scale.
+- **Lensing:** a numerical Schwarzschild null-geodesic shader bends light from the disk and background stars. The apparent shadow is larger than the physical horizon. Disable lensing for straight light paths, or enable the blue horizon guide to see the unlensed physical silhouette.
+- **Disk:** an illustrative thin disk from 3 to 8 horizon radii, with differential rotation, brightness asymmetry, approximate Doppler/gravitational shifts, and multiple disk images. Disk extent, color, emission and animation are not observational reconstructions. Disks run at an illustrative pace independent of the solar animation clock; the global animation switch pauses both.
+- **Navigation:** one selected black hole is placed in the exhibition at a time, with no rescaling of planets. Visits select a suitable starting speed. You can change it freely, up to 100 billion km/s in this mode. Camera distance to the horizon is shown in the label and information panel.
+- **Rendering:** solar-system geometry stays at full display resolution. The lensing pass uses at most 1280 × 900 pixels. Distant subpixel planetary groups can be skipped; nearby Sun detail is retained. The floor and planets are an illustrative comparison stage, not matter in a relativistic simulation.
+
+The independent ray integrator uses `p″ = −3 h² p / (2 |p|⁵)` in horizon-radius units, with finite-distance static-observer initialization and adaptive velocity-Verlet steps. It does not model Kerr spin, relativistic observer motion, full radiative transfer, or mutual gravity. References: [Bruneton’s Schwarzschild rendering paper](https://ebruneton.github.io/black_hole_shader/paper.pdf) and [NASA’s disk/lensing explanation](https://svs.gsfc.nasa.gov/14619/). No external shader code is bundled.
+
 ## Run locally
 
 Requires **Node.js 22.13 or newer**, npm, and a browser with WebGL 2 and hardware acceleration. Node.js 24 or newer is recommended for running the TypeScript checks below.
@@ -41,7 +57,7 @@ Prefer not to use Git? Download the repository ZIP from GitHub, extract it, and 
 npm run build
 ```
 
-The deployable files are in **`dist/client/`**. Serve that directory with a static HTTP server or upload it to a static host. For a quick local check, if Python 3 is installed:
+The deployable files are in **`dist/client/`**. The included `netlify.toml` configures this output directory and Node.js 24 for GitHub-connected Netlify builds. Serve that directory with a static HTTP server or upload it to a static host. For a quick local check, if Python 3 is installed:
 
 ```bash
 python3 -m http.server 8000 --bind 127.0.0.1 --directory dist/client

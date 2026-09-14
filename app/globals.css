@@ -308,3 +308,56 @@ kbd { font-family: var(--font-geist-mono),monospace; color: #b7cbe2; }
 .travel-panel { overflow-x: hidden; scrollbar-width: thin; scrollbar-color: #526679 transparent; }
 
 .world-label .label-distance { color: #bfd9f4; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.exhibition-switch { margin-bottom: 8px; }
+.layout-controls > .segmented { justify-content: center; }
+.black-holes-view .hole-info { top: 18%; width: 300px; max-height: calc(100svh - 400px); overflow-y: auto; scrollbar-width: thin; padding-right: 12px; pointer-events: auto; }
+.hole-info h1 { font-size: clamp(30px,3.1vw,52px); }
+.hole-info .planet-description { max-width: 285px; margin-bottom: 20px; }
+.hole-info .metrics { gap: 15px; }
+.hole-info .metrics strong { font-size: 23px; }
+.horizon-note { display: block; font-size: 11px; line-height: 1.6; color: #92a4b9; margin-top: 6px; }
+.horizon-note a { color: #d4b895; }
+.horizon-distance { font-size: 14px; color: #d6e7fc; margin-top: 18px; font-variant-numeric: tabular-nums; }
+.horizon-distance span { color: #8c9db3; }
+.hole-options { margin-top: 19px; border-top: 1px solid #ffffff20; padding-top: 9px; }
+.hole-options label { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 6px 0; font-size: 14px; color: #bdcbe0; }
+.lens-note { font-size: 12px; line-height: 1.6; color: #99a9bd; margin-top: 9px; }
+.hole-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.hole-actions button { text-align: left; color: #e6be92; font-size: 14px; padding: 6px 0; }
+.size-steps { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 18px; border-top: 1px solid #ffffff20; padding-top: 15px; font-size: 14px; }
+.size-steps span { color: #899bb0; font-size: 12px; }
+.size-steps button:disabled { cursor: default; opacity: .25; }
+.hole-dock { display: grid; grid-template-columns: repeat(7,1fr); gap: 5px; padding: 7px; background: #0c121deb; border: 1px solid #e2b88d30; border-radius: 10px; margin: 0 auto 9px; max-width: 1450px; backdrop-filter: blur(16px); }
+.hole-dock button { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; text-align: left; padding: 10px; border-radius: 5px; color: #a5b0bf; }
+.hole-dock button > span { font: 11px monospace; color: #9a7a5d; padding-top: 2px; }
+.hole-dock strong { font-size: 13px; font-weight: 450; }
+.hole-dock small { grid-column: 2; font-size: 11px; color: #8393a8; margin-top: 4px; }
+.hole-dock button[aria-pressed=true] { background: #e6b38218; color: #ffe1bd; box-shadow: inset 0 0 0 1px #edbf8838; }
+.black-holes-view .planet-stop { min-height: 67px; padding-block: 7px; gap: 4px; }
+.black-holes-view .planet-stop small { display: none; }
+.black-holes-view .view-tools { bottom: 248px; }
+.black-hole-label { border: 1px solid #e4b68145; color: #f1d3b1; }
+@media (max-height:900px) and (min-width:701px) { .black-holes-view .hole-info { top: 145px; max-height: calc(100svh - 380px); width: 285px; } .black-holes-view .hole-info h1 { font-size: 32px; } .black-holes-view .hole-info .planet-description { font-size: 12px; line-height: 1.5; } }
+@media (max-width:1000px) { .hole-dock { overflow-x:auto; display:flex; } .hole-dock button { min-width:145px; } }
+@media (max-width:700px) {
+ .black-holes-view .hole-info { left:16px; top:155px; width:calc(100% - 74px); max-height: calc(100svh - 430px); padding: 10px; background:#08101be0; border-radius:8px; }
+ .hole-info .metrics strong { font-size:18px; }
+ .hole-info h1 { font-size:28px; }
+ .hole-info .hole-options { margin-top:10px; }
+ .hole-options label { font-size:12px; }
+ .black-holes-view .travel-panel { bottom:219px; max-height:170px; }
+ .black-holes-view .view-tools { bottom:222px; }
+ .hole-dock { margin-bottom:6px; padding:4px; }
+ .hole-dock button { padding:7px; min-width:130px; }
+ .hole-dock small { font-size:10px; }
+ .black-holes-view .bottom-note { display:none; }
+ .black-holes-view .planet-stop { min-height:64px; }
+ .exhibition-switch { margin-bottom:5px; }
+ .layout-controls p { display:none; }
+ .observatory:not(.black-holes-view) .planet-info { top:181px; }
+}
+@media (max-width:700px) {
+ .black-holes-view .hole-info { max-height: calc(100svh - 510px); }
+ .black-holes-view .travel-panel { max-height: 125px; }
+}

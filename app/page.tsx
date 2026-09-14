@@ -9,11 +9,19 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SPEED_REFERENCES, speedComparison } from '@/lib/speed-references';
 import { DEFAULT_SPEED, formatDistance, formatSpeed, type NavigationMode, type Telemetry } from '@/lib/navigation';
 import { BODIES, AU_KM, type BodyId, type LayoutMode } from '@/lib/planets';
+import { BLACK_HOLES, SOLAR_HORIZON_RADIUS_KM, type BlackHoleId } from '@/lib/black-holes';
 import type { Observatory } from '@/lib/observatory';
 
 export default function HomePage() {
   const mount = useRef<HTMLDivElement>(null);
   const engine = useRef<Observatory | null>(null);
+  const [blackHoles, setBlackHoles] = useState(false);
+  const [holeId, setHoleId] = useState<BlackHoleId>('sgr');
+  const [lensing, setLensing] = useState(true);
+  const [disk, setDisk] = useState(true);
+  const [guide, setGuide] = useState(false);
+  const hole = BLACK_HOLES.find(h => h.id === holeId)!;
+  const holeIndex = BLACK_HOLES.findIndex(h => h.id === holeId);
   const [selected, setSelected] = useState<BodyId>('earth');
   const [view, setView] = useState('Explore');
   const [status, setStatus] = useState('Preparing the observatory');
@@ -50,13 +58,15 @@ export default function HomePage() {
     return () => { disposed = true; engine.current?.dispose(); engine.current = null; };
   }, []);
 
+  function changeExhibition(value: boolean) { setBlackHoles(value);setLayout('compact');engine.current?.setBlackHoles(value); }
+  function visitHole(id: BlackHoleId) { setHoleId(id);engine.current?.selectBlackHole(id); }
   function visit(id: BodyId) { setSelected(id); setView('Explore'); engine.current?.focus(id); }
   function changeLayout(value: LayoutMode) { setLayout(value); setView('Explore'); engine.current?.setLayout(value); }
   function changeSpeed(value: number) { engine.current?.setSpeed(value); }
   function overview() { setView('Overview'); engine.current?.overview(); }
 
   return (
-    <main className="observatory">
+    <main className={`observatory ${blackHoles ? 'black-holes-view' : ''}`}>
       <div ref={mount} className="scene" aria-label="Interactive 3D solar system size comparison. WASD moves, Q/E changes altitude, drag to look, brackets change speed. Use the planet buttons to travel." />
       <div className="vignette" />
       <header className="masthead">
@@ -64,6 +74,7 @@ export default function HomePage() {
         <div className="header-actions"><span className="scale-badge"><span/>TRUE RELATIVE SCALE</span>
           <Dialog><DialogTrigger className="icon-button" aria-label="About this scale model"><Info size={19}/></DialogTrigger>
             <DialogContent className="about-dialog"><DialogHeader><span className="eyebrow">THE SCALE OF THINGS</span><DialogTitle>A shared ground. A true comparison.</DialogTitle><DialogDescription>All eight planets and the Sun use one consistent, linear scale. Nothing gets enlarged to make it easier to see.</DialogDescription></DialogHeader>
+              <p>Black holes use the Schwarzschild horizon radius, 2GM/c², at the same kilometer scale as the planets. The physical horizon touches the exhibition floor. Only the selected black hole is present. Placement is an exhibition, not a real gravitational system; planets remain stationary.</p><p>The shader numerically traces nonrotating Schwarzschild light paths. Lensing enlarges the apparent shadow; the blue horizon guide marks the unlensed physical silhouette. The illustrative thin disk extends from the innermost stable circular orbit (3 horizon radii) to 8 horizon radii. Its patterns run at an illustrative pace, independent of the solar clock. Emission, colors and disk extent are not reconstructions of individual objects. Only the disk and background stars follow curved rays; the floor and planets remain an illustrative comparison stage. See <a href="https://svs.gsfc.nasa.gov/14619/" target="_blank" rel="noreferrer">NASA’s lensing explanation</a> and <a href="https://ebruneton.github.io/black_hole_shader/paper.pdf" target="_blank" rel="noreferrer">Bruneton’s Schwarzschild rendering reference</a>.</p>
               <p>Dimensions use NASA’s equatorial and polar radii, so the gas giants are correctly flattened. Each body touches the ground at its lowest point. Saturn’s main rings extend to 136,775 km from its center.</p>
               <p>Close together places the bodies in an exhibition. True distances aligns them on one straight line at their average center-to-center distance from the Sun. These are mean orbital radii, not current orbital positions or fixed distances between orbiting planets. The floor, soft shadows, lighting, solar color, star twinkle, and texture rotation are illustrative. Planet axes are upright for comparison, and the dock icons are navigation aids, not to scale.</p>
               <p>Coronal arcades follow a local bipolar potential-field approximation, with fixed footpoints and nested strands about 200–460 km wide. This model samples heights of roughly 1,000–44,000 km. Brightness approximates optically thin emission, with staggered heating and cooling and draining plasma. The enhanced orange glow is a false-colour composite inspired by ultraviolet observations; these loops would not look this bright to the unaided eye. Geometry, heating and density remain approximations, not a live solar reconstruction or full magnetohydrodynamic simulation.</p><p>Real time advances one simulated second per second; Illustrative runs 120 times faster. Modeled emission cycles last 70–158 minutes; magnetic arches remain anchored as their plasma brightens and fades.</p><p className="credits">Loop references: <a href="https://www.nasa.gov/solar-system/rocket-borne-telescope-detects-super-fine-strands-on-the-sun/" target="_blank" rel="noreferrer">NASA Hi-C fine strands</a> · <a href="https://svs.gsfc.nasa.gov/11198" target="_blank" rel="noreferrer">SDO coronal rain and Earth scale</a> · <a href="https://doi.org/10.3389/fspas.2022.820116" target="_blank" rel="noreferrer">Antolin &amp; Froment: rain, flows and heating</a>.</p><div className="about-controls"><label htmlFor="motion">Animate surfaces, plasma & stars</label><Switch id="motion" checked={motion} onCheckedChange={v => { setMotion(v); engine.current?.setMotion(v); }}/></div>
@@ -74,14 +85,33 @@ export default function HomePage() {
       </header>
 
       <div className="layout-controls">
+        <ToggleGroup aria-label="Exhibition" value={[blackHoles ? 'blackholes' : 'solar']} onValueChange={values => { if(values[0]) changeExhibition(values[0] === 'blackholes'); }} className="segmented exhibition-switch" disabled={!ready}>
+          <ToggleGroupItem value="solar">Solar system</ToggleGroupItem><ToggleGroupItem value="blackholes">Black holes</ToggleGroupItem>
+        </ToggleGroup>
+        {!blackHoles && <>
         <ToggleGroup aria-label="Planet spacing" value={[layout]} onValueChange={values => { if (values[0]) changeLayout(values[0] as LayoutMode); }} className="segmented" disabled={!ready}>
           <ToggleGroupItem value="compact">Close together</ToggleGroupItem>
           <ToggleGroupItem value="distances">True distances</ToggleGroupItem>
         </ToggleGroup>
-        <p>{layout === 'compact' ? 'A shared floor. Unchanged planet sizes.' : 'Mean distances from the Sun · straight-line alignment'}</p>
+        <p>{layout === 'compact' ? 'A shared floor. Unchanged planet sizes.' : 'Mean distances from the Sun · straight-line alignment'}</p></>}
+        {blackHoles && <p>One horizon at a time. The same Sun. The same scale.</p>}
       </div>
 
-      <section className="planet-info" aria-live="polite" aria-atomic="true">
+      {blackHoles ? <section className="planet-info hole-info" aria-label="Selected black hole">
+        <div className="eyebrow"><span className="info-dot" style={{background:'#e9ab70'}}/>{String(holeIndex+1).padStart(2,'0')} / {hole.kind}</div>
+        <h1>{hole.name}</h1>
+        <p className="planet-description">{hole.description}</p>
+        <div className="metrics"><div><span className="metric-label">EVENT HORIZON DIAMETER</span><strong>{formatDistance(hole.mass * SOLAR_HORIZON_RADIUS_KM * 2)}</strong><small className="horizon-note">Nonrotating equivalent · <a href={hole.source} target="_blank" rel="noreferrer">mass source ↗</a></small></div><div><span className="metric-label">COMPARED TO THE SUN’S DIAMETER</span><strong>{(hole.mass * SOLAR_HORIZON_RADIUS_KM / 695700).toLocaleString('en-US',{maximumSignificantDigits:4})}<small> ×</small></strong></div></div>
+        <p className="horizon-distance">{formatDistance(telemetry.blackHoleKm ?? 0)} <span>to horizon</span></p>
+        <div className="hole-options">
+          <label htmlFor="bh-lensing">Gravitational lensing <Switch id="bh-lensing" checked={lensing} onCheckedChange={v=>{setLensing(v);engine.current?.setLensing(v);}}/></label>
+          <label htmlFor="bh-disk">Accretion disk <Switch id="bh-disk" checked={disk} onCheckedChange={v=>{setDisk(v);engine.current?.setDisk(v);}}/></label>
+          <label htmlFor="bh-guide">Horizon guide <Switch id="bh-guide" checked={guide} onCheckedChange={v=>{setGuide(v);engine.current?.setHorizonGuide(v);}}/></label>
+        </div>
+        <p className="lens-note">{lensing ? 'The lensed shadow looks larger than the physical horizon.' : 'Straight light paths reveal the physical horizon size.'} Disk appearance and animation are illustrative.</p>
+        <div className="hole-actions"><button onClick={()=>engine.current?.inspectBlackHole()}>Inspect black hole ↗</button><button onClick={()=>engine.current?.besideSun()}>Stand beside the Sun ↗</button><button onClick={()=>engine.current?.inspectSolarArcade()}>Inspect the Sun’s corona ↗</button></div>
+        <div className="size-steps"><button disabled={holeIndex===0} onClick={()=>visitHole(BLACK_HOLES[holeIndex-1].id)}>← Smaller</button><span>{holeIndex+1} / {BLACK_HOLES.length}</span><button disabled={holeIndex===BLACK_HOLES.length-1} onClick={()=>visitHole(BLACK_HOLES[holeIndex+1].id)}>Larger →</button></div>
+      </section> : <section className="planet-info" aria-live="polite" aria-atomic="true">
         <div className="eyebrow"><span className="info-dot" style={{ background: body.color }}/>{view === 'Overview' ? 'THE BIG PICTURE' : `${body.number} / ${body.kind}`}</div>
         <h1>{view === 'Overview' ? <>A little<br/>perspective.</> : body.name}</h1>
         <p className="planet-description">{view === 'Overview' ? 'One star. Eight planets. One true scale.' : body.description}</p>
@@ -89,7 +119,7 @@ export default function HomePage() {
         {layout === 'distances' && <p className="solar-distance"><span className="metric-label">MEAN DISTANCE FROM SUN</span>{formatDistance(body.orbitKm)} <small>({(body.orbitKm / AU_KM).toFixed(2)} AU)</small></p>}
         {selected === 'sun' && <button className="text-button" disabled={!ready} onClick={() => engine.current?.inspectSolarArcade()}>Inspect coronal arcade <ArrowUpRight size={14}/></button>}
         <button className="text-button" onClick={overview} disabled={!ready}><Scan size={15}/> See the whole picture <ArrowUpRight size={14}/></button>
-      </section>
+      </section>}
 
       <div className="view-tools" aria-label="View controls">
         <button className="icon-button" title="Return to Earth (Home)" aria-label="Return to Earth" onClick={() => visit('earth')} disabled={!ready}><Home size={18}/></button>
@@ -104,7 +134,7 @@ export default function HomePage() {
         <div className="travel-panel-top"><span className="eyebrow">TRAVEL SPEED</span><span className={telemetry.movingKms > 0.01 ? 'moving-status moving' : 'moving-status'}>{telemetry.movingKms > 0.01 ? 'MOVING' : 'STOPPED'}</span></div>
         <div className="speed-readout"><strong>{formatSpeed(speed)}</strong><div className="speed-buttons"><button aria-label="Halve movement speed" onClick={() => changeSpeed(speed / 2)} disabled={!ready}><Minus size={15}/></button><button aria-label="Double movement speed" onClick={() => changeSpeed(speed * 2)} disabled={!ready}><Plus size={15}/></button></div></div>
         <div className="speed-comparison"><strong>{comparison.text}</strong><span>{(comparison.reference.kms * 1000).toLocaleString('en-US', { maximumFractionDigits: 0 })} m/s · {comparison.reference.detail}</span><a href={comparison.reference.source} target="_blank" rel="noreferrer">Reference ↗</a></div>
-        <Slider aria-label="Movement speed" min={-3} max={8} step={0.05} value={[Math.log10(speed)]} onValueChange={value => changeSpeed(10 ** (Array.isArray(value) ? value[0] : value))} disabled={!ready}/>
+        <Slider aria-label="Movement speed" min={-3} max={blackHoles ? 11 : 8} step={0.05} value={[Math.log10(speed)]} onValueChange={value => changeSpeed(10 ** (Array.isArray(value) ? value[0] : value))} disabled={!ready}/>
         <div className="speed-presets"><button onClick={() => changeSpeed(2000)}>Planetary</button><button onClick={() => changeSpeed(299792.458)}>Light speed</button><button onClick={() => changeSpeed(10000000)}>Interplanetary</button></div>
         <details className="speed-library"><summary>Try a real-world speed</summary><div>{SPEED_REFERENCES.map(ref => <div key={ref.name}><button disabled={!ready} onClick={() => changeSpeed(ref.kms)}><strong>{ref.name}</strong><span>{formatSpeed(ref.kms)}</span></button><small>{ref.detail} · <a href={ref.source} target="_blank" rel="noreferrer">source ↗</a></small></div>)}</div></details>
         <div className="solar-time-control"><span className="eyebrow">SOLAR ANIMATION</span><ToggleGroup aria-label="Solar animation speed" value={[String(solarTimeScale)]} onValueChange={values => { if (values[0]) { const rate = Number(values[0]) as 1 | 120; setSolarTimeScale(rate); engine.current?.setSolarTimeScale(rate); } }} className="segmented"><ToggleGroupItem value="120">Illustrative · 120×</ToggleGroupItem><ToggleGroupItem value="1">Real time · 1×</ToggleGroupItem></ToggleGroup><small>{solarTimeScale === 1 ? 'One simulated second per second. Changes are gradual.' : 'One modeled hour in 30 seconds.'} Modeled emission cycles: 70–158 min.</small></div>
@@ -122,10 +152,11 @@ export default function HomePage() {
 
       <footer className="bottom-interface">
         <div className="navigation-caption"><span><span className="live-dot"/>{view === 'Overview' ? 'SYSTEM OVERVIEW' : `REFERENCE: ${body.name.toUpperCase()}`}</span><span className="mouse-hint"><Mouse size={14}/> WASD to move <i/> Drag to {navigation === 'look' ? 'look' : 'orbit'} <i/> [ ] to change speed</span></div>
+        {blackHoles && <nav className="hole-dock" aria-label="Black hole size progression">{BLACK_HOLES.map((h,i)=><button key={h.id} aria-pressed={holeId===h.id} onClick={()=>visitHole(h.id)}><span>{String(i+1).padStart(2,'0')}</span><strong>{h.short}</strong><small>{formatDistance(h.mass*SOLAR_HORIZON_RADIUS_KM*2)}</small></button>)}</nav>}
         <nav className="planet-dock" aria-label="Travel to a planet">
           {BODIES.map(b => <button key={b.id} className={`planet-stop ${selected === b.id && view !== 'Overview' ? 'active' : ''}`} onClick={() => visit(b.id)} disabled={!ready} aria-pressed={selected === b.id && view !== 'Overview'}><span className={`planet-thumbnail ${b.id}`} style={{ backgroundImage: `url(/textures/${b.texture})` }}/><span>{b.name}</span><small>{layout === 'distances' ? `${(b.orbitKm / AU_KM).toFixed(2)} AU FROM SUN` : b.id === 'earth' ? 'OUR REFERENCE' : `${(b.equatorial / 6378.1).toFixed(b.id === 'sun' ? 1 : 2)} × EARTH`}</small></button>)}
         </nav>
-        <div className="bottom-note"><span><Sparkles size={12}/> {layout === 'compact' ? 'Sizes to scale. Distances arranged for comparison.' : 'Sizes and mean solar distances use the same linear scale. Markers identify distant bodies.'}</span><span>01 STAR <i/> 08 PLANETS <i/> INFINITE PERSPECTIVE</span></div>
+        <div className="bottom-note"><span><Sparkles size={12}/> {blackHoles ? 'Horizon sizes to scale. One selected black hole; all planets retained.' : layout === 'compact' ? 'Sizes to scale. Distances arranged for comparison.' : 'Sizes and mean solar distances use the same linear scale. Markers identify distant bodies.'}</span><span>01 STAR <i/> 08 PLANETS <i/> INFINITE PERSPECTIVE</span></div>
       </footer>
       {!ready && <div className={`loading-screen ${failed ? 'error' : ''}`} role="status"><Orbit size={36} className={failed ? '' : 'loading-orbit'}/><p>{status}</p>{failed && <button className="text-button" onClick={() => window.location.reload()}>Reload observatory</button>}</div>}
     </main>

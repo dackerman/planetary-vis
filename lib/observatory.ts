@@ -1,3 +1,5 @@
+import { BLACK_HOLES, blackHoleRadius, blackHolePosition, type BlackHoleId } from './black-holes';
+import { createBlackHoleEffects } from './black-hole-effects';
 import { createSolarEffects } from './solar-effects';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -7,6 +9,13 @@ import { DEFAULT_SPEED, formatDistance, surfaceDistanceKm, clampSpeed, movementD
 
 export interface Observatory {
   focus(id: BodyId): void;
+  setBlackHoles(enabled: boolean): void;
+  selectBlackHole(id: BlackHoleId): void;
+  inspectBlackHole(): void;
+  besideSun(): void;
+  setLensing(enabled: boolean): void;
+  setDisk(enabled: boolean): void;
+  setHorizonGuide(enabled: boolean): void;
   inspectSolarArcade(): void;
   overview(): void;
   zoom(factor: number): void;
@@ -42,7 +51,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   renderer.domElement.setAttribute('aria-label', '3D scene. WASD moves, Q and E change altitude. Drag to look. Brackets change speed. Home returns to Earth.');
   container.appendChild(renderer.domElement);
 
-  const camera = new THREE.PerspectiveCamera(46, container.clientWidth / container.clientHeight, 0.005, 100_000_000);
+  const camera = new THREE.PerspectiveCamera(46, container.clientWidth / container.clientHeight, 0.005, 10_000_000_000);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.075;
@@ -63,6 +72,12 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   sunLight.position.set(-115, 109, -255);
   scene.add(sunLight);
 
+  let blackHolesEnabled = false;
+  let activeHole: BlackHoleId = 'sgr';
+  let lensingEnabled = true, diskEnabled = true, horizonGuide = false;
+  let holeEffects: ReturnType<typeof createBlackHoleEffects> | undefined;
+  const holeCenter = new THREE.Vector3();
+  let holeRadius = blackHoleRadius(4.3e6);
   let layout: LayoutMode = 'compact';
   let navigation: NavigationMode = 'look';
   let selected: BodyId = 'earth';
@@ -240,6 +255,12 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     material.fragmentShader = '#include <logdepthbuf_pars_fragment>\n' + material.fragmentShader.replace(/void main\(\)\s*{/, 'void main(){\n#include <logdepthbuf_fragment>\n');
   });
 
+  const holeLabel = document.createElement('button');
+  holeLabel.className = 'world-label black-hole-label';
+  holeLabel.hidden = true;
+  holeLabel.addEventListener('click', () => inspectBlackHole());
+  labelLayer.appendChild(holeLabel);
+
   let transition: { from: THREE.Vector3; to: THREE.Vector3; targetFrom: THREE.Vector3; targetTo: THREE.Vector3; start: number; duration: number } | null = null;
   function framePosition(id: BodyId) {
     const body = bodies.find(b => b.data.id === id)!;
@@ -257,6 +278,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     transition = { from: camera.position.clone(), to: position, targetFrom: controls.target.clone(), targetTo: target, start: performance.now(), duration: motion ? 1800 : 0 };
   }
   function focus(id: BodyId) {
+    if (blackHolesEnabled) setSpeed(DEFAULT_SPEED);
     selected = id;
     keys.clear();
     const body = bodies.find(b => b.data.id === id)!;
@@ -265,6 +287,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     travel(frame.position, frame.target);
   }
   function inspectSolarArcade() {
+    if (blackHolesEnabled) setSpeed(DEFAULT_SPEED);
     const sun=bodies.find(b=>b.data.id==='sun')!;
     if(!solarEffects) return;
     selected='sun'; keys.clear(); setNavigation('look'); controls.minDistance=.1;
@@ -272,6 +295,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     travel(sun.globe.localToWorld(solarEffects.inspection.position.clone()), sun.globe.localToWorld(solarEffects.inspection.target.clone()));
   }
   function overview() {
+    if (blackHolesEnabled) { inspectBlackHole(); return; }
     controls.minDistance = 1;
     const aspect = container.clientWidth / container.clientHeight;
     if (layout === 'distances') {
@@ -285,8 +309,8 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     transition = null;
     const offset = camera.position.clone().sub(controls.target);
     if (navigation === 'look') {
-      const delta = camera.getWorldDirection(new THREE.Vector3()).multiplyScalar((1 - factor) * Math.min(offset.length(), 1000));
-      const safe = safeMovement(camera.position, delta, collisionBodies);
+      const delta = camera.getWorldDirection(new THREE.Vector3()).multiplyScalar((1 - factor) * Math.min(offset.length(), blackHolesEnabled ? Math.max(1000, holeRadius * 10) : 1000));
+      const safe = safeMovement(camera.position, delta, collisionBodies, blackHolesEnabled ? Math.min(.04, holeRadius * .01) : .04);
       camera.position.add(safe); controls.target.add(safe);
       return;
     }
@@ -295,6 +319,46 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     controls.update();
   }
   const collisionBodies = bodies.map(b => ({ position: b.group.position, radius: b.radius, height: b.height }));
+  const holeCollision = { position: holeCenter, radius: holeRadius, height: holeRadius };
+  function selectBlackHole(id: BlackHoleId) {
+    activeHole = id;
+    const data = BLACK_HOLES.find(h => h.id === id)!;
+    holeRadius = blackHoleRadius(data.mass);
+    const p = blackHolePosition(data.mass);
+    holeCenter.set(p.x,p.y,p.z);
+    holeCollision.radius = holeRadius; holeCollision.height = holeRadius;
+    holeLabel.textContent = '';
+    holeLabel.appendChild(document.createTextNode(data.name));
+    const diameter = document.createElement('small');diameter.textContent = `${formatDistance(holeRadius * 2 * KM_PER_UNIT)} horizon`;
+    const distance = document.createElement('small');distance.className='label-distance';
+    holeLabel.appendChild(diameter);holeLabel.appendChild(distance);
+    if (blackHolesEnabled) inspectBlackHole();
+  }
+  function inspectBlackHole() {
+    if (!blackHolesEnabled) return;
+    keys.clear();setNavigation('look');controls.minDistance=holeRadius*1.1;setSpeed(holeRadius*KM_PER_UNIT*.025);
+    const distance = holeRadius * Math.max(19, 17 / camera.aspect);
+    travel(holeCenter.clone().add(new THREE.Vector3(holeRadius * .15, holeRadius * 3.5, distance)), holeCenter.clone());
+  }
+  function besideSun() {
+    selected='sun';callbacks.onSelect('sun');keys.clear();setNavigation('look');setSpeed(DEFAULT_SPEED);
+    const sun=bodies.find(b=>b.data.id==='sun')!;
+    travel(sun.group.position.clone().add(new THREE.Vector3(-150, 160, 650)),sun.group.position.clone().add(new THREE.Vector3(0,30,-500)));
+  }
+  function setBlackHoles(enabled: boolean) {
+    if (enabled === blackHolesEnabled) return;
+    blackHolesEnabled=enabled;holeLabel.hidden=!enabled;scene.background=new THREE.Color(enabled ? '#000000' : '#020306');
+    if(enabled){
+      holeEffects ??= createBlackHoleEffects(renderer);
+      setLayout('compact');selectBlackHole(activeHole);
+      collisionBodies.push(holeCollision);controls.maxDistance=2e9;
+      besideSun();
+    }else{
+      collisionBodies.splice(collisionBodies.indexOf(holeCollision),1);
+      controls.maxDistance=2000;setSpeed(Math.min(speedKms,1e8));camera.near=.005;camera.updateProjectionMatrix();
+      focus('earth');callbacks.onSelect('earth');
+    }
+  }
   const opening = framePosition('earth');
   camera.position.copy(opening.position);
   controls.target.copy(opening.target);
@@ -310,7 +374,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     lastMovementAt = now;
     if (movementDt === 0) return;
     const delta = movementDelta(keys, camera.getWorldDirection(new THREE.Vector3()), speedKms, movementDt);
-    const movement = safeMovement(camera.position, delta, collisionBodies);
+    const movement = safeMovement(camera.position, delta, collisionBodies, blackHolesEnabled ? Math.min(.04, holeRadius * .01) : .04);
     camera.position.add(movement);
     controls.target.add(movement);
     const movedKm = movement.length() * KM_PER_UNIT;
@@ -416,6 +480,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     camera.aspect = container.clientWidth / container.clientHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(container.clientWidth, container.clientHeight);
+    holeEffects?.resize();
     floor.getRenderTarget().setSize(Math.min(1536, container.clientWidth), Math.min(1024, container.clientHeight));
   });
   resize.observe(container);
@@ -467,7 +532,16 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
       }
       if (motion) body.globe.rotation.y += body.data.id === 'sun' ? wallDelta * solarTimeScale * 2 * Math.PI / (25.38 * 86400) : dt * 0.013;
     }
-    camera.position.y = Math.max(0.04, camera.position.y);
+    if (blackHolesEnabled) {
+      offset.copy(camera.position).sub(holeCenter);
+      if(offset.length()<holeRadius*1.08){
+        if(offset.lengthSq()===0)offset.set(0,0,1);
+        camera.position.copy(holeCenter).add(offset.setLength(holeRadius*1.08));
+      }
+      const near=Math.max(1e-7,Math.min(.005,holeRadius*.001));
+      if(camera.near!==near){camera.near=near;camera.updateProjectionMatrix();}
+    }
+    camera.position.y = Math.max(blackHolesEnabled ? Math.min(.04,holeRadius*.01) : .04, camera.position.y);
     camera.lookAt(controls.target);
     camera.updateMatrixWorld();
     solarEffects?.update(solarElapsed);
@@ -480,11 +554,25 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     telemetryTime += dt;
     if (telemetryTime >= 0.12) {
       const reference = bodies.find(b => b.data.id === selected)!;
-      callbacks.onTelemetry({ movingKms, traveledKm,
+      callbacks.onTelemetry({ movingKms, traveledKm, blackHoleKm: blackHolesEnabled ? Math.max(0,camera.position.distanceTo(holeCenter)-holeRadius)*KM_PER_UNIT : undefined,
         gridKm: gridStep * KM_PER_UNIT, referenceKm: camera.position.distanceTo(reference.group.position) * KM_PER_UNIT });
       telemetryTime = 0;
     }
-    renderer.render(scene, camera);
+    // Keep high detail nearby; skip subpixel corona and atmosphere work.
+    for (const body of bodies) {
+      const angular = body.radius / camera.position.distanceTo(body.group.position);
+      body.group.visible = !blackHolesEnabled || angular > 1e-7;
+    }
+    if (blackHolesEnabled && holeEffects) {
+      holeEffects.render(scene,camera,holeCenter,holeRadius,elapsed,lensingEnabled,diskEnabled,horizonGuide);
+      const anchor=holeCenter.clone().add(new THREE.Vector3(0,holeRadius*1.12,0));
+      projected.copy(anchor).project(camera);
+      const visible=labelsEnabled && projected.z>-1 && projected.z<1 && Math.abs(projected.x)<1 && Math.abs(projected.y)<1;
+      holeLabel.style.opacity=visible?'1':'0';holeLabel.style.pointerEvents=visible?'auto':'none';
+      holeLabel.tabIndex=visible?0:-1;holeLabel.setAttribute('aria-hidden',String(!visible));
+      holeLabel.style.transform=`translate3d(${(projected.x*.5+.5)*container.clientWidth}px,${(-projected.y*.5+.5)*container.clientHeight}px,0) translate(-50%,-100%)`;
+      holeLabel.querySelector('.label-distance')!.textContent=`${formatDistance(Math.max(0,camera.position.distanceTo(holeCenter)-holeRadius)*KM_PER_UNIT)} to horizon`;
+    } else renderer.render(scene, camera);
     // Project labels with the same camera on every rendered frame.
     for (const body of bodies) {
       const anchor = body.group.position.clone().add(new THREE.Vector3(0, body.height + body.radius * 0.13, 0));
@@ -524,6 +612,10 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   animate();
 
   return {
+    setBlackHoles, selectBlackHole, inspectBlackHole, besideSun,
+    setLensing(value) { lensingEnabled=value; },
+    setDisk(value) { diskEnabled=value; },
+    setHorizonGuide(value) { horizonGuide=value; },
     focus, inspectSolarArcade, overview, zoom, setLayout, setNavigation, setSpeed, setMovementKey,
     setLabels(value) { labelsEnabled = value; labelLayer.hidden = !value; },
     setMotion(value) { motion = value; },
@@ -550,6 +642,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
           materials.forEach(material => material.dispose());
         }
       });
+      holeEffects?.dispose();
       textures.forEach(t => t.dispose()); floor.dispose(); renderer.dispose();
       renderer.domElement.remove(); labelLayer.remove();
     },
