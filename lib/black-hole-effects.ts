@@ -43,6 +43,72 @@ vec3 emission(vec3 p,vec3 v){
   vec3 color=mix(vec3(1.,.08,.008),vec3(1.,.65,.26),clamp((g-.5)*1.25+flux*.4,0.,1.));
   return color*flux*pow(g,3.)*3.5;
 }
+struct Trace {
+  vec3 light;
+  vec3 direction;
+  vec3 floorPoint;
+  float transmission;
+  bool captured;
+  bool floorHit;
+};
+Trace traceRay(vec3 p, vec3 rd){
+  Trace hit;
+  hit.light=vec3(0.);hit.direction=rd;hit.floorPoint=p;
+  hit.transmission=1.;hit.captured=false;hit.floorHit=false;
+  float along=-dot(p,rd);
+  float impact2=max(0.,dot(p,p)-along*along);
+  float floorT=rd.y<-.000001?(-1.-p.y)/rd.y:1.e20;
+  // Rays that miss the lens can still reach the floor and reflect into it.
+  if(along<0. || impact2>100.){
+    if(floorT>0. && floorT<1.e19){hit.floorHit=true;hit.floorPoint=p+rd*floorT;}
+    return hit;
+  }
+  if(length(p)>40.){
+    float entry=max(0.,along-sqrt(max(0.,1600.-impact2)));
+    if(floorT>0. && floorT<entry){hit.floorHit=true;hit.floorPoint=p+rd*floorT;return hit;}
+    p+=rd*entry;
+  }
+  float r0=length(p);vec3 radial=p/r0;
+  vec3 v=rd;
+  if(lensing>.5) v=radial*dot(rd,radial)+(rd-radial*dot(rd,radial))/sqrt(max(.001,1.-1./r0));
+  vec3 h=cross(p,v);float h2=dot(h,h);
+  for(int i=0;i<220;i++){
+    float r=length(p);
+    if(r<1.001){hit.captured=true;break;}
+    if(r>42. && dot(p,v)>0.){
+      // The floor remains opaque beyond the numerical lens integration region.
+      float t=v.y<-.000001?(-1.-p.y)/v.y:1.e20;
+      if(t>0. && t<1.e19){hit.floorHit=true;hit.floorPoint=p+v*t;}
+      break;
+    }
+    float ds=clamp(r*.085,.018,2.);
+    vec3 acc=-1.5*h2*p/pow(r,5.)*lensing;
+    vec3 next=p+v*ds+.5*acc*ds*ds;
+    float nr=max(length(next),.5);
+    vec3 nv=v+.5*(acc-1.5*h2*next/pow(nr,5.)*lensing)*ds;
+    // Sort intersections along this segment. A visible disk crossing must be
+    // accumulated BEFORE a later floor hit; never replace it with a reflection.
+    float floorFraction=2.;
+    if(p.y> -1. && next.y<= -1.) floorFraction=(-1.-p.y)/(next.y-p.y);
+    if(diskEnabled>.5 && p.y*next.y<0.){
+      float diskFraction=p.y/(p.y-next.y);
+      if(diskFraction<floorFraction){
+        vec3 crossing=mix(p,next,diskFraction);float cr=length(crossing.xz);
+        if(cr>3. && cr<8.){
+          hit.light+=hit.transmission*emission(crossing,mix(v,nv,diskFraction));
+          hit.transmission*=.18;
+        }
+      }
+    }
+    if(floorFraction<=1.){
+      hit.floorHit=true;hit.floorPoint=mix(p,next,floorFraction);
+      v=mix(v,nv,floorFraction);break;
+    }
+    p=next;v=nv;
+  }
+  hit.direction=normalize(v);
+  return hit;
+}
 void main(){
   vec2 xy=(uvScreen*2.-1.)*vec2(aspect,1.)*tanFov;
   vec3 localRay=normalize(vec3(xy,-1.));
@@ -50,55 +116,33 @@ void main(){
   float depth=texture2D(depthMap,uvScreen).x;
   float sceneDistance=(exp2(depth*log2(farPlane+1.))-1.)/(-localRay.z)/radius;
   float closest=-dot(eye,rd);
-  // Preserve nearby high-resolution planets, clouds and ground. Only objects
-  // behind the lens are candidates for its image; exhibition matter is static.
-  bool ground=false;
   float groundT=rd.y<-.000001?(-1.-eye.y)/rd.y:1.e20;
   bool isFloor=depth<.999999 && groundT>0. && abs(sceneDistance-groundT)<max(.00005,groundT*.003);
+  // This depth test protects foreground planets, but never chooses reflection.
   if(depth<.999999 && sceneDistance<max(0.,closest-3.) && !isFloor){gl_FragColor=vec4(0.);return;}
-  ground=isFloor && groundT<max(0.,closest);
-  vec3 p=eye;
-  if(ground){p+=rd*groundT;p.y=-.99999;rd.y=-rd.y;}
-  float along=-dot(p,rd);
-  float impact2=dot(p,p)-along*along;
-  // Outside the display disk, use the same sky without an expensive trace.
-  if(along<0. || impact2>100.){
-    gl_FragColor=ground?vec4(0.):vec4(1.-exp(-sky(rd)*1.3),depth>.999999?1.:0.);return;
+  Trace primary=traceRay(eye,rd);
+  vec3 light=primary.light;
+  float baseWeight=0.;
+  if(primary.floorHit){
+    baseWeight=primary.transmission;
+    // Reflection is a secondary ray, attenuated by both the floor and every
+    // disk crossing on the primary path. It cannot overwrite primary emission.
+    vec3 bounce=reflect(primary.direction,vec3(0.,1.,0.));
+    vec3 origin=primary.floorPoint;origin.y=-1.+.0001;
+    Trace reflected=traceRay(origin,bounce);
+    light+=primary.transmission*.065*(reflected.light+((reflected.captured||reflected.floorHit)?vec3(0.):sky(reflected.direction)*reflected.transmission));
+  }else if(!primary.captured){
+    light+=sky(primary.direction)*primary.transmission;
   }
-  if(length(p)>40.){float entry=along-sqrt(max(0.,1600.-impact2));p+=rd*max(0.,entry);}
-  float r0=length(p);vec3 radial=p/r0;
-  vec3 v=rd;
-  if(lensing>.5) v=radial*dot(rd,radial)+(rd-radial*dot(rd,radial))/sqrt(max(.001,1.-1./r0));
-  vec3 h=cross(p,v);float h2=dot(h,h);
-  vec3 light=vec3(0.);float transmission=1.;bool captured=false;bool hitFloor=false;
-  for(int i=0;i<220;i++){
-    float r=length(p);
-    if(r<1.001){captured=true;break;}
-    if(r>42. && dot(p,v)>0.)break;
-    float ds=clamp(r*.085,.018,2.);
-    vec3 acc=-1.5*h2*p/pow(r,5.)*lensing;
-    vec3 next=p+v*ds+.5*acc*ds*ds;
-    float nr=max(length(next),.5);
-    vec3 nv=v+.5*(acc-1.5*h2*next/pow(nr,5.)*lensing)*ds;
-    if(diskEnabled>.5 && p.y*next.y<0.){
-      vec3 crossing=mix(p,next,p.y/(p.y-next.y));float cr=length(crossing.xz);
-      if(cr>3. && cr<8.){
-        light+=transmission*emission(crossing,v);
-        transmission*=.18;
-      }
-    }
-    if(!ground && p.y> -1. && next.y<= -1.){hitFloor=true;break;}
-    p=next;v=nv;
+  vec3 result=1.-exp(-light*1.3);
+  result+=texture2D(baseMap,uvScreen).rgb*baseWeight;
+  if(horizonGuide>.5){
+    float impact2=max(0.,dot(eye,eye)-closest*closest);
+    float b=sqrt(impact2);float line=1.-smoothstep(.003+fwidth(b),.006+fwidth(b)*2.,abs(b-1.));
+    if(closest>0.)result=mix(result,vec3(.28,.72,1.),line*.9);
   }
-  vec3 result=light+(captured||hitFloor?vec3(0.):sky(v)*transmission);
-  // Gentle filmic compression. Main solar-system rendering stays at full res.
-  result=1.-exp(-result*1.3);
-  if(horizonGuide>.5 && !ground){
-    float b=sqrt(max(0.,impact2));float line=1.-smoothstep(.003+fwidth(b),.006+fwidth(b)*2.,abs(b-1.));
-    result=mix(result,vec3(.28,.72,1.),line*.9);
-  }
-  if(hitFloor) result+=(texture2D(baseMap,uvScreen).rgb)*transmission;
-  float alpha=ground?.065:(((depth<.999999||hitFloor) && !captured && length(light)<.0001)?0.:1.);
+  // Preserve the full-resolution base when there is no hole, disk or reflection.
+  float alpha=(!primary.captured && length(light)<.0001 && depth<.999999 && horizonGuide<.5)?0.:1.;
   gl_FragColor=vec4(result,alpha);
 }
 `;
