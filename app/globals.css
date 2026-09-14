@@ -372,3 +372,10 @@ kbd { font-family: var(--font-geist-mono),monospace; color: #b7cbe2; }
 .time-dilation strong small { font-size: 12px; }
 .time-dilation small { color: #a2aeba; line-height: 1.5; }
 .time-dilation a { text-decoration: underline; text-underline-offset: 3px; }
+
+.descent-darkness { position: absolute; inset: 0; background: #000; pointer-events: none; }
+.descent-controls { display: grid; gap: 9px; margin-top: 16px; font-size: 13px; }
+.descent-controls button { border: 1px solid #e9ab7060; background: #402d2266; color: #f5cfab; border-radius: 6px; padding: 9px 12px; cursor: pointer; }
+.descent-controls div { display: flex; flex-wrap: wrap; gap: 6px; }
+.descent-controls small { color: #a2aeba; line-height: 1.5; }
+.descent-controls progress { width: 100%; height: 4px; accent-color: #e9ab70; }

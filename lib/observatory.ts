@@ -1,5 +1,6 @@
 import { BLACK_HOLES, blackHoleRadius, blackHolePosition, blackHoleTravelSpeed, type BlackHoleId } from './black-holes';
 import { createBlackHoleEffects, type ShaderQuality } from './black-hole-effects';
+import { descentFrame, DESCENT_SECONDS } from './descent';
 import { GALACTIC_SKY_GLSL } from './galactic-sky';
 import { createSolarEffects } from './solar-effects';
 import * as THREE from 'three';
@@ -14,6 +15,8 @@ export interface Observatory {
   selectBlackHole(id: BlackHoleId): void;
   inspectBlackHole(): void;
   besideSun(): void;
+  startDescent(): void;
+  pauseDescent(): void;
   setShaderQuality(value: ShaderQuality): void;
   setLensing(enabled: boolean): void;
   setDisk(enabled: boolean): void;
@@ -253,6 +256,7 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
   holeLabel.addEventListener('click', () => inspectBlackHole());
   labelLayer.appendChild(holeLabel);
 
+  let descent: { seconds: number; paused: boolean; axis: THREE.Vector3 } | null = null;
   let transition: { from: THREE.Vector3; to: THREE.Vector3; targetFrom: THREE.Vector3; targetTo: THREE.Vector3; start: number; duration: number } | null = null;
   function framePosition(id: BodyId) {
     const body = bodies.find(b => b.data.id === id)!;
@@ -267,6 +271,7 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
     return { position: target.clone().add(new THREE.Vector3(displayRadius * 0.08, displayRadius * 0.95, distance)), target };
   }
   function travel(position: THREE.Vector3, target: THREE.Vector3) {
+    descent=null;
     transition = { from: camera.position.clone(), to: position, targetFrom: controls.target.clone(), targetTo: target, start: performance.now(), duration: motion ? 1800 : 0 };
   }
   function focus(id: BodyId) {
@@ -338,6 +343,16 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
     const sun=bodies.find(b=>b.data.id==='sun')!;
     travel(sun.group.position.clone().add(new THREE.Vector3(-150, 160, 650)),blackHolesEnabled ? holeCenter.clone() : sun.group.position.clone().add(new THREE.Vector3(0,30,-500)));
   }
+  function startDescent() {
+    if(!blackHolesEnabled) return;
+    keys.clear();setNavigation('look');
+    // Above the disk: the outward view stays clear of the exhibition floor.
+    const axis=new THREE.Vector3(.15,.94,.3).normalize();
+    const start=holeCenter.clone().addScaledVector(axis,holeRadius*3);
+    travel(start,start.clone().addScaledVector(axis,holeRadius));
+    descent={seconds:0,paused:false,axis};
+  }
+  function pauseDescent() { if(descent) descent.paused=!descent.paused; }
   function setBlackHoles(enabled: boolean) {
     if (enabled === blackHolesEnabled) return;
     blackHolesEnabled=enabled;holeLabel.hidden=!enabled;scene.background=new THREE.Color(enabled ? '#000000' : '#020306');
@@ -365,6 +380,7 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
   function integrateMovement(now: number) {
     const movementDt = Math.min(Math.max(0, (now - lastMovementAt) / 1000), 0.25);
     lastMovementAt = now;
+    if (descent) { movingKms=0;return; }
     if (movementDt === 0) return;
     const delta = movementDelta(keys, camera.getWorldDirection(new THREE.Vector3()), speedKms, movementDt);
     const movement = safeMovement(camera.position, delta, collisionBodies, blackHolesEnabled ? Math.min(.04, holeRadius * .01) : .04);
@@ -411,6 +427,7 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
     } else keys.delete(code);
   }
   function keyDown(event: KeyboardEvent) {
+    if(event.code==='Escape' && descent){besideSun();return;}
     const element = event.target instanceof Element ? event.target : null;
     if (element?.closest('input, textarea, select, [contenteditable="true"], [role="slider"], [role="dialog"]') || document.querySelector('[role="dialog"]')) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -525,9 +542,15 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
       }
       if (motion) body.globe.rotation.y += body.data.id === 'sun' ? wallDelta * solarTimeScale * 2 * Math.PI / (25.38 * 86400) : dt * 0.013;
     }
+    if (descent && !transition) {
+      if(!descent.paused && !document.hidden) descent.seconds=Math.min(DESCENT_SECONDS,descent.seconds+dt);
+      const frame=descentFrame(descent.seconds);
+      camera.position.copy(holeCenter).addScaledVector(descent.axis,holeRadius*frame.radiusRatio);
+      controls.target.copy(camera.position).addScaledVector(descent.axis,holeRadius);
+    }
     if (blackHolesEnabled) {
       offset.copy(camera.position).sub(holeCenter);
-      if(offset.length()<holeRadius*1.08){
+      if(!descent && offset.length()<holeRadius*1.08){
         if(offset.lengthSq()===0)offset.set(0,0,1);
         camera.position.copy(holeCenter).add(offset.setLength(holeRadius*1.08));
       }
@@ -547,7 +570,7 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
     telemetryTime += dt;
     if (telemetryTime >= 0.12) {
       const reference = bodies.find(b => b.data.id === selected)!;
-      callbacks.onTelemetry({ movingKms, traveledKm, blackHoleRadiusRatio: blackHolesEnabled ? camera.position.distanceTo(holeCenter)/holeRadius : undefined, shader: blackHolesEnabled ? holeEffects?.getStats() : undefined, blackHoleKm: blackHolesEnabled ? Math.max(0,camera.position.distanceTo(holeCenter)-holeRadius)*KM_PER_UNIT : undefined,
+      callbacks.onTelemetry({ movingKms, traveledKm, descent: descent ? { ...descentFrame(descent.seconds), paused: descent.paused } : undefined, blackHoleRadiusRatio: blackHolesEnabled ? camera.position.distanceTo(holeCenter)/holeRadius : undefined, shader: blackHolesEnabled ? holeEffects?.getStats() : undefined, blackHoleKm: blackHolesEnabled ? Math.max(0,camera.position.distanceTo(holeCenter)-holeRadius)*KM_PER_UNIT : undefined,
         gridKm: gridStep * KM_PER_UNIT, referenceKm: camera.position.distanceTo(reference.group.position) * KM_PER_UNIT });
       telemetryTime = 0;
     }
@@ -605,7 +628,7 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
   animate();
 
   return {
-    setBlackHoles, selectBlackHole, inspectBlackHole, besideSun,
+    setBlackHoles, selectBlackHole, inspectBlackHole, besideSun, startDescent, pauseDescent,
     setShaderQuality(value) { shaderQuality=value;holeEffects?.setQuality(value); },
     setLensing(value) { lensingEnabled=value; },
     setDisk(value) { diskEnabled=value; },

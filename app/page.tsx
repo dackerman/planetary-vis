@@ -78,6 +78,7 @@ export default function HomePage() {
   return (
     <main className={`observatory ${blackHoles ? 'black-holes-view' : ''}`}>
       <div ref={mount} className="scene" aria-label="Interactive 3D solar system size comparison. WASD moves, Q/E changes altitude, drag to look, brackets change speed. Use the planet buttons to travel." />
+      <div className="descent-darkness" style={{opacity: blackHoles ? telemetry.descent?.fade ?? 0 : 0}} aria-hidden="true" />
       <div className="vignette" />
       <header className="masthead">
         <a className="brand" href="/" aria-label="Solar Scale home"><Orbit size={29} strokeWidth={1.1}/><span>SOLAR<span className="brand-light">SCALE</span><small>A MATTER OF PERSPECTIVE</small></span></a>
@@ -140,6 +141,15 @@ export default function HomePage() {
           <small>{shaderQuality==='auto' ? 'Adjusts resolution toward 60 FPS as you explore.' : 'Fixed resolution. Native is ideal for powerful GPUs and 4K displays.'}</small>
         </div>
         <p className="lens-note">{lensing ? 'The lensed shadow looks larger than the physical horizon.' : 'Straight light paths reveal the physical horizon size.'} Disk appearance and animation are illustrative.</p>
+        <div className="descent-controls">
+          {telemetry.descent ? <>
+            <strong>{telemetry.descent.progress>=1 ? 'The sky has gone dark' : telemetry.descent.paused ? 'Descent paused' : 'Falling toward the horizon'}</strong>
+            <progress aria-label="Descent progress" value={telemetry.descent.progress} max={1}/>
+            <div>{telemetry.descent.progress<1 && <button onClick={()=>engine.current?.pauseDescent()}>{telemetry.descent.paused ? 'Resume' : 'Pause'}</button>}<button onClick={()=>engine.current?.startDescent()}>Restart</button><button onClick={()=>engine.current?.besideSun()}>Return to Sun</button></div>
+            <small>Esc returns to the Sun. Your view faces outward.</small>
+          </> : <button className="descent-start" onClick={()=>{setLensing(true);setGuide(false);engine.current?.setLensing(true);engine.current?.setHorizonGuide(false);engine.current?.startDescent();}}>Fall into the black hole ↘</button>}
+          <small>35-second cinematic illustration. Stationary-view lensing and a final fade; not a physical free-fall simulation.</small>
+        </div>
         <div className="hole-actions"><button onClick={()=>engine.current?.inspectBlackHole()}>Inspect black hole ↗</button><button onClick={()=>engine.current?.besideSun()}>Stand beside the Sun ↗</button><button onClick={()=>engine.current?.inspectSolarArcade()}>Inspect the Sun’s corona ↗</button></div>
         <div className="size-steps"><button disabled={holeIndex===0} onClick={()=>visitHole(BLACK_HOLES[holeIndex-1].id)}>← Smaller</button><span>{holeIndex+1} / {BLACK_HOLES.length}</span><button disabled={holeIndex===BLACK_HOLES.length-1} onClick={()=>visitHole(BLACK_HOLES[holeIndex+1].id)}>Larger →</button></div>
       </section> : <section className="planet-info" aria-live="polite" aria-atomic="true">
