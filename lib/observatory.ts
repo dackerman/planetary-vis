@@ -162,8 +162,8 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
           vec4 b=bodies[i]; vec2 p=world.xz-b.xy;
           float contact=exp(-dot(p,p)/(b.z*b.z*.20))*.96;
           vec2 projected=(p-vec2(.615,-.846)*b.w)/vec2(b.z*1.18,b.z*1.32);
-          float cast=(1.-smoothstep(.72,1.35,length(projected)))*.68;
-          shadow=max(shadow,max(contact,cast));
+          float castShadow=(1.-smoothstep(.72,1.35,length(projected)))*.68;
+          shadow=max(shadow,max(contact,castShadow));
         }
         float grazing=pow(1.-clamp(normalize(cameraPosition-world).y,0.,1.),3.);
         vec3 ground=vec3(.036,.046,.062)*(1.-shadow*.97);
