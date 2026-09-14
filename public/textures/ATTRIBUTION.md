@@ -36,3 +36,5 @@ Earth cloud maps are opaque JPEGs: use luminance as an alpha mask rather than ex
 - 2k_earth_clouds.jpg: https://www.solarsystemscope.com/textures/download/2k_earth_clouds.jpg
 - 8k_earth_clouds.jpg: https://www.solarsystemscope.com/textures/download/8k_earth_clouds.jpg
 - 2k_sun.jpg: https://www.solarsystemscope.com/textures/download/2k_sun.jpg
+
+Sun upgrade: Solar System Scope / INOVE, CC BY 4.0. Downloaded from https://www.solarsystemscope.com/textures/download/8k_sun.jpg ; actual supplied resolution is 4096 × 2048 (stored as 4k_sun.jpg). Animated fine surface detail and plasma loops are procedural illustrations.

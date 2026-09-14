@@ -299,3 +299,10 @@ kbd { font-family: var(--font-geist-mono),monospace; color: #b7cbe2; }
 .speed-library button strong { font-weight: 500; }
 .speed-library small { display: block; color: #92a5ba; font-size: 9px; padding-bottom: 6px; }
 .travel-panel { max-height: calc(100vh - 200px); overflow-y: auto; }
+
+.solar-time-control { margin: 12px 0 18px; }
+.solar-time-control .segmented { margin-top: 8px; }
+.solar-time-control small { display: block; font-size: 10px; line-height: 1.5; color: #95a6bb; margin-top: 7px; }
+.solar-time-control .segmented { width: 100%; display: flex; min-width: 0; }
+.solar-time-control .segmented button { min-width: 0; flex: 1; padding: 8px 4px; font-size: 10px; white-space: normal; }
+.travel-panel { overflow-x: hidden; scrollbar-width: thin; scrollbar-color: #526679 transparent; }

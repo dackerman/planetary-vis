@@ -1,3 +1,4 @@
+import { createSolarEffects } from './solar-effects';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
@@ -14,6 +15,7 @@ export interface Observatory {
   setMovementKey(code: string, pressed: boolean): void;
   setLabels(enabled: boolean): void;
   setMotion(enabled: boolean): void;
+  setSolarTimeScale(scale: 1 | 120): void;
   dispose(): void;
 }
 interface Callbacks {
@@ -71,6 +73,8 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   let labelsEnabled = true;
   let animationId = 0;
   let elapsed = 0;
+  let solarElapsed = 0;
+  let solarTimeScale: 1 | 120 = 120;
   const textures: THREE.Texture[] = [];
   const manager = new THREE.LoadingManager();
   const loader = new THREE.TextureLoader(manager);
@@ -94,12 +98,13 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   const labelLayer = document.createElement('div');
   labelLayer.className = 'scene-labels';
   container.appendChild(labelLayer);
+  let solarEffects: ReturnType<typeof createSolarEffects> | undefined;
   const bodies = BODIES.map(data => {
     const { radius, height } = bodyDimensions(data);
     const group = new THREE.Group();
     group.position.set(data.x, height, data.z);
     const material = data.id === 'sun'
-      ? new THREE.MeshBasicMaterial({ map: texture(data.texture), color: 0xffd4a3 })
+      ? new THREE.MeshBasicMaterial({ map: texture('4k_sun.jpg'), color: 0xffd4a3 })
       : new THREE.MeshStandardMaterial({ map: texture(data.id === 'earth' ? '8k_earth_daymap.jpg' : data.texture), roughness: data.id === 'earth' ? 0.72 : 0.95, metalness: 0 });
     const globe = new THREE.Mesh(geometry, material);
     globe.scale.set(radius, height, radius);
@@ -137,6 +142,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
       group.add(ring);
     }
     if (data.id === 'sun') {
+      solarEffects = createSolarEffects(globe, material as THREE.MeshBasicMaterial);
       const halo = new THREE.Mesh(geometry, new THREE.ShaderMaterial({
         uniforms: { haloColor: { value: new THREE.Color('#ff8f28') } },
         vertexShader: `varying vec3 n; varying vec3 v; void main(){vec4 p=modelViewMatrix*vec4(position,1.);n=normalize(normalMatrix*normal);v=normalize(-p.xyz);gl_Position=projectionMatrix*p;}`,
@@ -418,8 +424,9 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   function animate() {
     if (disposed) return;
     animationId = requestAnimationFrame(animate);
-    const dt = Math.min(clock.getDelta(), 0.05);
-    if (motion) elapsed += dt;
+    const wallDelta = clock.getDelta();
+    const dt = Math.min(wallDelta, 0.05);
+    if (motion) { elapsed += dt; solarElapsed += wallDelta * solarTimeScale / 120; }
     if (transition) {
       const t = transition.duration ? Math.min((performance.now() - transition.start) / transition.duration, 1) : 1;
       const ease = t * t * (3 - 2 * t);
@@ -449,11 +456,12 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
         offset.normalize().multiplyScalar(1.08).multiply(new THREE.Vector3(body.radius, body.height, body.radius));
         camera.position.copy(body.group.position).add(offset);
       }
-      if (motion) body.globe.rotation.y += dt * (body.data.id === 'sun' ? 0.006 : 0.013);
+      if (motion) body.globe.rotation.y += body.data.id === 'sun' ? wallDelta * solarTimeScale * 2 * Math.PI / (25.38 * 86400) : dt * 0.013;
     }
     camera.position.y = Math.max(0.04, camera.position.y);
     camera.lookAt(controls.target);
     camera.updateMatrixWorld();
+    solarEffects?.update(solarElapsed);
     starsMaterial.uniforms.time.value = elapsed;
     stars.position.copy(camera.position);
     floor.position.set(camera.position.x, 0, camera.position.z);
@@ -508,6 +516,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     focus, overview, zoom, setLayout, setNavigation, setSpeed, setMovementKey,
     setLabels(value) { labelsEnabled = value; labelLayer.hidden = !value; },
     setMotion(value) { motion = value; },
+    setSolarTimeScale(value) { solarTimeScale = value; },
     dispose() {
       disposed = true;
       cancelAnimationFrame(animationId);
