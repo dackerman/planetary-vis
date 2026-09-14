@@ -256,7 +256,7 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
   holeLabel.addEventListener('click', () => inspectBlackHole());
   labelLayer.appendChild(holeLabel);
 
-  let descent: { seconds: number; paused: boolean; axis: THREE.Vector3 } | null = null;
+  let descent: { seconds: number; paused: boolean; axis: THREE.Vector3; lookDirection: THREE.Vector3 } | null = null;
   let transition: { from: THREE.Vector3; to: THREE.Vector3; targetFrom: THREE.Vector3; targetTo: THREE.Vector3; start: number; duration: number } | null = null;
   function framePosition(id: BodyId) {
     const body = bodies.find(b => b.data.id === id)!;
@@ -350,7 +350,7 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
     const axis=new THREE.Vector3(.15,.94,.3).normalize();
     const start=holeCenter.clone().addScaledVector(axis,holeRadius*3);
     travel(start,start.clone().addScaledVector(axis,holeRadius));
-    descent={seconds:0,paused:false,axis};
+    descent={seconds:0,paused:false,axis,lookDirection:axis.clone()};
   }
   function pauseDescent() { if(descent) descent.paused=!descent.paused; }
   function setBlackHoles(enabled: boolean) {
@@ -396,6 +396,7 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
     callbacks.onSpeed(speedKms);
   }
   function setNavigation(value: NavigationMode) {
+    if(descent) value='look';
     navigation = value;
     controls.enabled = value === 'orbit';
     callbacks.onNavigation(value);
@@ -458,6 +459,7 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
     lookEuler.y -= dx;
     lookEuler.x = THREE.MathUtils.clamp(lookEuler.x - dy, -Math.PI / 2 + 0.02, Math.PI / 2 - 0.02);
     camera.quaternion.setFromEuler(lookEuler);
+    if(descent) camera.getWorldDirection(descent.lookDirection);
     controls.target.copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(distance));
   }
   function pointerDown(event: PointerEvent) {
@@ -546,7 +548,7 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
       if(!descent.paused && !document.hidden) descent.seconds=Math.min(DESCENT_SECONDS,descent.seconds+dt);
       const frame=descentFrame(descent.seconds);
       camera.position.copy(holeCenter).addScaledVector(descent.axis,holeRadius*frame.radiusRatio);
-      controls.target.copy(camera.position).addScaledVector(descent.axis,holeRadius);
+      controls.target.copy(camera.position).addScaledVector(descent.lookDirection,holeRadius);
     }
     if (blackHolesEnabled) {
       offset.copy(camera.position).sub(holeCenter);

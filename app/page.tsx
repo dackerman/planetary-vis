@@ -146,7 +146,7 @@ export default function HomePage() {
             <strong>{telemetry.descent.progress>=1 ? 'The sky has gone dark' : telemetry.descent.paused ? 'Descent paused' : 'Falling toward the horizon'}</strong>
             <progress aria-label="Descent progress" value={telemetry.descent.progress} max={1}/>
             <div>{telemetry.descent.progress<1 && <button onClick={()=>engine.current?.pauseDescent()}>{telemetry.descent.paused ? 'Resume' : 'Pause'}</button>}<button onClick={()=>engine.current?.startDescent()}>Restart</button><button onClick={()=>engine.current?.besideSun()}>Return to Sun</button></div>
-            <small>Esc returns to the Sun. Your view faces outward.</small>
+            <small>Drag or use arrow keys to look around. Esc returns to the Sun.</small>
           </> : <button className="descent-start" onClick={()=>{setLensing(true);setGuide(false);engine.current?.setLensing(true);engine.current?.setHorizonGuide(false);engine.current?.startDescent();}}>Fall into the black hole ↘</button>}
           <small>35-second cinematic illustration. Stationary-view lensing and a final fade; not a physical free-fall simulation.</small>
         </div>
