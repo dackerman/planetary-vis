@@ -50,8 +50,9 @@ Trace traceRay(vec3 p, vec3 rd){
   float along=-dot(p,rd);
   float impact2=max(0.,dot(p,p)-along*along);
   float floorT=rd.y<-.000001?(-1.-p.y)/rd.y:1.e20;
-  // Rays that miss the lens can still reach the floor and reflect into it.
-  if(along<0. || impact2>1600.){
+  // Only skip rays that miss the entire integration region from OUTSIDE it.
+  // Inside it, outward rays can still cross the disk beside/behind the camera.
+  if(length(p)>40. && (along<0. || impact2>1600.)){
     if(floorT>0. && floorT<1.e19){hit.floorHit=true;hit.floorPoint=p+rd*floorT;}
     return hit;
   }
