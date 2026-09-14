@@ -366,3 +366,9 @@ kbd { font-family: var(--font-geist-mono),monospace; color: #b7cbe2; }
 .shader-quality select { background: #151d26; color: #e1e6ed; border: 1px solid #38424f; border-radius: 6px; padding: 6px; max-width: 170px; }
 .shader-quality select:focus-visible { outline: 2px solid #a8c4e8; outline-offset: 2px; }
 .shader-quality small { grid-column: 1 / -1; color: #a2aeba; line-height: 1.5; }
+
+.time-dilation { display: grid; gap: 6px; margin: 16px 0; padding: 12px 0; border-top: 1px solid #ffffff20; border-bottom: 1px solid #ffffff20; font-size: 13px; }
+.time-dilation strong { font-size: 20px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.time-dilation strong small { font-size: 12px; }
+.time-dilation small { color: #a2aeba; line-height: 1.5; }
+.time-dilation a { text-decoration: underline; text-underline-offset: 3px; }

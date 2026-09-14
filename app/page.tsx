@@ -10,6 +10,7 @@ import { SPEED_REFERENCES, speedComparison } from '@/lib/speed-references';
 import { DEFAULT_SPEED, formatDistance, formatSpeed, type NavigationMode, type Telemetry } from '@/lib/navigation';
 import { BODIES, AU_KM, type BodyId, type LayoutMode } from '@/lib/planets';
 import { BLACK_HOLES, SOLAR_HORIZON_RADIUS_KM, type BlackHoleId } from '@/lib/black-holes';
+import { gravitationalClockRate, clockDuration } from '@/lib/time-dilation';
 import type { ShaderQuality } from '@/lib/black-hole-effects';
 import type { Observatory } from '@/lib/observatory';
 
@@ -36,6 +37,7 @@ export default function HomePage() {
   const [solarTimeScale, setSolarTimeScale] = useState<1 | 120>(120);
   const [speed, setSpeed] = useState(DEFAULT_SPEED);
   const [telemetry, setTelemetry] = useState<Telemetry>({ gridKm: 127562, movingKms: 0, traveledKm: 0, referenceKm: 0 });
+  const clockRate = telemetry.blackHoleRadiusRatio === undefined ? null : gravitationalClockRate(telemetry.blackHoleRadiusRatio);
   const comparison = speedComparison(speed);
   const body = BODIES.find(b => b.id === selected)!;
 
@@ -111,6 +113,16 @@ export default function HomePage() {
         <p className="planet-description">{hole.description}</p>
         <div className="metrics"><div><span className="metric-label">EVENT HORIZON DIAMETER</span><strong>{formatDistance(hole.mass * SOLAR_HORIZON_RADIUS_KM * 2)}</strong><small className="horizon-note">Nonrotating equivalent · <a href={hole.source} target="_blank" rel="noreferrer">mass source ↗</a></small></div><div><span className="metric-label">COMPARED TO THE SUN’S DIAMETER</span><strong>{(hole.mass * SOLAR_HORIZON_RADIUS_KM / 695700).toLocaleString('en-US',{maximumSignificantDigits:4})}<small> ×</small></strong></div></div>
         <p className="horizon-distance">{formatDistance(telemetry.blackHoleKm ?? 0)} <span>to horizon</span></p>
+        <div className="time-dilation" aria-label="Gravitational time dilation">
+          <span className="metric-label">GRAVITATIONAL TIME DILATION</span>
+          {clockRate !== null ? <>
+            <strong>{clockRate.toFixed(6)} <small>s here / s far away</small></strong>
+            <span>{((1-clockRate)*100).toLocaleString('en-US',{maximumSignificantDigits:4})}% slower · r = {telemetry.blackHoleRadiusRatio?.toLocaleString('en-US',{maximumSignificantDigits:5})} rₛ</span>
+            <span>1 hour here ≈ {clockDuration(3600/clockRate)} far away.</span>
+          </> : <span>{telemetry.blackHoleRadiusRatio === undefined ? 'Measuring camera distance…' : 'No stationary clock at or inside the horizon.'}</span>}
+          <small>Your own clock feels normal. Stationary observer; nonrotating hole; excludes travel-speed effects. Far away means at infinity.</small>
+          <small>dτ/dt = √(1 − rₛ/r) · <a href="https://web.mit.edu/8.962/www/lecnotes/8_962TA-lec-all.pdf" target="_blank" rel="noreferrer">MIT: Schwarzschild clocks ↗</a></small>
+        </div>
         <div className="hole-options">
           <label htmlFor="bh-lensing">Gravitational lensing <Switch id="bh-lensing" checked={lensing} onCheckedChange={v=>{setLensing(v);engine.current?.setLensing(v);}}/></label>
           <label htmlFor="bh-disk">Accretion disk <Switch id="bh-disk" checked={disk} onCheckedChange={v=>{setDisk(v);engine.current?.setDisk(v);}}/></label>

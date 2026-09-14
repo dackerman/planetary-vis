@@ -547,7 +547,7 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
     telemetryTime += dt;
     if (telemetryTime >= 0.12) {
       const reference = bodies.find(b => b.data.id === selected)!;
-      callbacks.onTelemetry({ movingKms, traveledKm, shader: blackHolesEnabled ? holeEffects?.getStats() : undefined, blackHoleKm: blackHolesEnabled ? Math.max(0,camera.position.distanceTo(holeCenter)-holeRadius)*KM_PER_UNIT : undefined,
+      callbacks.onTelemetry({ movingKms, traveledKm, blackHoleRadiusRatio: blackHolesEnabled ? camera.position.distanceTo(holeCenter)/holeRadius : undefined, shader: blackHolesEnabled ? holeEffects?.getStats() : undefined, blackHoleKm: blackHolesEnabled ? Math.max(0,camera.position.distanceTo(holeCenter)-holeRadius)*KM_PER_UNIT : undefined,
         gridKm: gridStep * KM_PER_UNIT, referenceKm: camera.position.distanceTo(reference.group.position) * KM_PER_UNIT });
       telemetryTime = 0;
     }
