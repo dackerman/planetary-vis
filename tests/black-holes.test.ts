@@ -42,7 +42,7 @@ test('supermassive disks overhang the Sun while the holes sit much closer', () =
   for (const mass of [4.3e6, 6.5e9, 66e9]) {
     const r=blackHoleRadius(mass), p=blackHolePosition(mass);
     const horizontal=Math.abs(p.z+108);
-    assert.ok(horizontal<4.6*r, 'black hole should loom close behind the Sun');
+    assert.ok(horizontal<3*r, 'black hole should loom close behind the Sun');
     assert.ok(horizontal<DISK_OUTER_RADIUS*r, 'Sun lies under disk footprint');
     assert.ok(r>2*695700/KM_PER_UNIT, 'disk plane clears the whole Sun');
   }

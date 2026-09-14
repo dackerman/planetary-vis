@@ -17,9 +17,9 @@ export const BLACK_HOLES = [
 export type BlackHoleId = typeof BLACK_HOLES[number]['id'];
 export function blackHoleRadius(mass: number) { return mass * SOLAR_HORIZON_RADIUS_KM / KM_PER_UNIT; }
 // A conservative shadow-sized clearance envelope, not a physical surface:
-// the apparent shadow depends on the observer. Additional room keeps its
-// outline readable from the solar exhibition instead of filling the whole view.
-export const EXHIBITION_CLEARANCE_RATIO = SHADOW_RADIUS_RATIO + 1.9;
+// the apparent shadow depends on the observer. A small additional margin
+// keeps bodies clear while letting the shadow loom across the sky.
+export const EXHIBITION_CLEARANCE_RATIO = SHADOW_RADIUS_RATIO + .15;
 export function blackHolePosition(mass: number) {
   const radius = blackHoleRadius(mass);
   let z = -108;
