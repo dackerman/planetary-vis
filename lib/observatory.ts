@@ -1,5 +1,6 @@
 import { BLACK_HOLES, blackHoleRadius, blackHolePosition, type BlackHoleId } from './black-holes';
 import { createBlackHoleEffects, type ShaderQuality } from './black-hole-effects';
+import { GALACTIC_SKY_GLSL } from './galactic-sky';
 import { createSolarEffects } from './solar-effects';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -225,32 +226,21 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   floor.position.y = 0;
   scene.add(floor);
 
-  const starGeometry = new THREE.BufferGeometry();
-  const starPositions = new Float32Array(2600 * 3);
-  const phases = new Float32Array(2600);
-  let seed = 2046;
-  function random() { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }
-  for (let i = 0; i < 2600; i++) {
-    const phi = Math.acos(2 * random() - 1), theta = random() * Math.PI * 2;
-    starPositions.set([Math.sin(phi) * Math.cos(theta) * 9000, Math.abs(Math.cos(phi)) * 9000 + 40, Math.sin(phi) * Math.sin(theta) * 9000], i * 3);
-    phases[i] = random() * 20;
-  }
-  starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-  starGeometry.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
   const starsMaterial = new THREE.ShaderMaterial({
-    uniforms: { time: { value: 0 }, pixelRatio: { value: renderer.getPixelRatio() } },
-    vertexShader: `attribute float phase; varying float p; uniform float pixelRatio;void main(){p=phase;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);gl_PointSize=(.75+fract(phase)*1.7)*pixelRatio;}`,
-    fragmentShader: `uniform float time;varying float p;void main(){float d=length(gl_PointCoord-.5);float a=(1.-smoothstep(.12,.5,d))*(.35+.5*(.5+.5*sin(time*(.35+fract(p)) + p)));gl_FragColor=vec4(mix(vec3(.7,.8,1.),vec3(1.,.9,.75),fract(p)),a);}`,
-    transparent: true, depthWrite: false,
+    uniforms: { time: { value: 0 } }, side: THREE.BackSide, depthWrite: false, depthTest: false,
+    vertexShader: `varying vec3 skyDirection;void main(){skyDirection=position;vec4 p=projectionMatrix*vec4(mat3(viewMatrix)*position,1.);gl_Position=p.xyww;}`,
+    fragmentShader: `uniform float time;varying vec3 skyDirection;${GALACTIC_SKY_GLSL}
+void main(){gl_FragColor=vec4(sky(skyDirection),1.);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}`,
   });
-  const stars = new THREE.Points(starGeometry, starsMaterial);
-  stars.scale.setScalar(1000);
-  stars.frustumCulled = false;
-  scene.add(stars);
+  const stars = new THREE.Mesh(new THREE.SphereGeometry(1,48,32),starsMaterial);
+  stars.renderOrder=-100;stars.frustumCulled=false;scene.add(stars);
 
   // All custom materials share logarithmic depth with the planetary surfaces.
   scene.traverse(object => {
-    if (!(object instanceof THREE.Mesh || object instanceof THREE.Points)) return;
+    if (object === stars || !(object instanceof THREE.Mesh || object instanceof THREE.Points)) return;
     const material = object.material;
     if (!(material instanceof THREE.ShaderMaterial) || material.vertexShader.includes('logdepthbuf_pars_vertex')) return;
     material.vertexShader = '#include <common>\n#include <logdepthbuf_pars_vertex>\n' + material.vertexShader.replace(/}\s*$/, '\n#include <logdepthbuf_vertex>\n}');

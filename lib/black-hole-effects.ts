@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GALACTIC_SKY_GLSL } from './galactic-sky';
 
 // Schwarzschild null geodesics in pseudo-Cartesian coordinates, rs=1:
 // p'' = -3 h² p / (2 |p|⁵). Velocity Verlet with adaptive affine steps.
@@ -14,18 +15,7 @@ uniform vec3 eye;
 uniform float aspect, tanFov, radius, farPlane, time, lensing, diskEnabled, horizonGuide;
 const float PI=3.14159265359;
 float hash(vec3 p){p=fract(p*.1031);p+=dot(p,p.yzx+33.33);return fract((p.x+p.y)*p.z);}
-vec3 sky(vec3 d){
-  // Direction-space stars, shared by straight and bent rays. Derivative filtering
-  // softens points when a lens stretches their footprints.
-  d=normalize(d);
-  vec2 q=vec2(atan(d.z,d.x)/(2.*PI)+.5,asin(clamp(d.y,-1.,1.))/PI+.5)*vec2(1100.,550.);
-  vec2 cell=floor(q);float h=hash(vec3(cell,1.));
-  vec2 f=fract(q)-vec2(.15+.7*hash(vec3(cell,2.)),.15+.7*hash(vec3(cell,3.)));
-  float width=max(.03,min(.45,length(fwidth(q))*.4));
-  float star=(1.-smoothstep(.025,.025+width,length(f)))*step(.984,h);
-  float twinkle=.72+.28*sin(time*.65+h*700.);
-  return star*twinkle*mix(vec3(.65,.78,1.),vec3(1.,.86,.65),hash(vec3(cell,4.)));
-}
+${GALACTIC_SKY_GLSL}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(vec3(i,0.)),hash(vec3(i+vec2(1,0),0.)),f.x),mix(hash(vec3(i+vec2(0,1),0.)),hash(vec3(i+1.,0.)),f.x),f.y);}
 vec3 emission(vec3 p,vec3 v){
   float r=length(p.xz);float a=atan(p.z,p.x);
