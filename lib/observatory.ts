@@ -7,6 +7,7 @@ import { DEFAULT_SPEED, formatDistance, surfaceDistanceKm, clampSpeed, movementD
 
 export interface Observatory {
   focus(id: BodyId): void;
+  inspectSolarArcade(): void;
   overview(): void;
   zoom(factor: number): void;
   setLayout(layout: LayoutMode): void;
@@ -263,6 +264,13 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     const frame = framePosition(id);
     travel(frame.position, frame.target);
   }
+  function inspectSolarArcade() {
+    const sun=bodies.find(b=>b.data.id==='sun')!;
+    if(!solarEffects) return;
+    selected='sun'; keys.clear(); setNavigation('look'); controls.minDistance=.1;
+    sun.globe.updateWorldMatrix(true,false);
+    travel(sun.globe.localToWorld(solarEffects.inspection.position.clone()), sun.globe.localToWorld(solarEffects.inspection.target.clone()));
+  }
   function overview() {
     controls.minDistance = 1;
     const aspect = container.clientWidth / container.clientHeight;
@@ -516,7 +524,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   animate();
 
   return {
-    focus, overview, zoom, setLayout, setNavigation, setSpeed, setMovementKey,
+    focus, inspectSolarArcade, overview, zoom, setLayout, setNavigation, setSpeed, setMovementKey,
     setLabels(value) { labelsEnabled = value; labelLayer.hidden = !value; },
     setMotion(value) { motion = value; },
     setSolarTimeScale(value) { solarTimeScale = value; },
