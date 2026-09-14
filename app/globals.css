@@ -224,3 +224,7 @@ i { width: 2px; height: 2px; background: currentColor; border-radius: 50%; displ
 .brand small { font-size: 10px; }
 @media (max-width: 1000px) { .planet-stop small { font-size: 9px; } .navigation-caption .mouse-hint { font-size: 10px; } }
 @media (max-width: 700px) { .planet-stop { min-width: 89px; } .planet-stop small { font-size: 10px; } .eyebrow, .scale-badge { font-size: 10px; } .metric-label { font-size: 10px; } .navigation-caption { font-size: 11px; } .bottom-note { font-size: 10px; } .brand small { font-size: 8px; } }
+
+/* Leave the contact points and floor visible above the navigation. */
+.vignette { background: linear-gradient(90deg,rgba(2,4,8,.4),transparent 30%),linear-gradient(0deg,#05080da6,transparent 22%,transparent 88%,#02040755); }
+@media (max-width:700px) { .vignette { background: linear-gradient(0deg,#03060aa6,transparent 23%,transparent 70%,#03060a99); } }

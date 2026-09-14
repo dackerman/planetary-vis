@@ -55,7 +55,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   let disposed = false;
   let motion = true;
   let labelsEnabled = true;
-    let animationId = 0;
+  let animationId = 0;
   let elapsed = 0;
   let frame = 0;
   const textures: THREE.Texture[] = [];
@@ -160,25 +160,31 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
         float shadow=0.;
         for(int i=0;i<9;i++){
           vec4 b=bodies[i]; vec2 p=world.xz-b.xy;
-          float contact=exp(-dot(p,p)/(b.z*b.z*.40))*.72;
+          float contact=exp(-dot(p,p)/(b.z*b.z*.20))*.96;
           vec2 projected=(p-vec2(.615,-.846)*b.w)/vec2(b.z*1.18,b.z*1.32);
-          float cast=(1.-smoothstep(.7,1.5,length(projected)))*.4;
+          float cast=(1.-smoothstep(.72,1.35,length(projected)))*.68;
           shadow=max(shadow,max(contact,cast));
         }
         float grazing=pow(1.-clamp(normalize(cameraPosition-world).y,0.,1.),3.);
-        vec3 ground=vec3(.012,.017,.025)*(1.-shadow*.88);
+        vec3 ground=vec3(.036,.046,.062)*(1.-shadow*.97);
         vec2 grid=abs(fract(world.xz/2.-.5)-.5)/max(fwidth(world.xz/2.),vec2(.0001));
         float line=1.-min(min(grid.x,grid.y),1.);
-        float gridFade=exp(-length(world.xz-cameraPosition.xz)*.055);
-        ground+=vec3(.008,.014,.022)*line*gridFade*(1.-shadow);
-        gl_FragColor=vec4(ground+reflection*(.16+.24*grazing)*(1.-shadow*.6),1.);
+        float groundDistance=length(world.xz-cameraPosition.xz);
+        float gridFade=exp(-groundDistance*.018);
+        vec2 majorGrid=abs(fract(world.xz/20.-.5)-.5)/max(fwidth(world.xz/20.),vec2(.0001));
+        float majorLine=1.-min(min(majorGrid.x,majorGrid.y),1.);
+        ground+=vec3(.033,.047,.066)*(line*.65*gridFade+majorLine*exp(-groundDistance*.0015))*(1.-shadow);
+        // The broad light gradient and two grid scales keep the shared plane readable
+        // both beside Earth and when the camera is hundreds of Earth radii away.
+        ground*=mix(.75,1.,exp(-groundDistance*.001));
+        gl_FragColor=vec4(ground+reflection*(.30+.25*grazing)*(1.-shadow*.45),1.);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
   };
   const floor = new Reflector(new THREE.PlaneGeometry(24000, 24000), { textureWidth: Math.min(1536, container.clientWidth), textureHeight: Math.min(1024, container.clientHeight), multisample: 0, clipBias: 0.00001, shader: reflectionShader });
   floor.rotation.x = -Math.PI / 2;
-  floor.position.y = -0.002;
+  floor.position.y = 0;
   scene.add(floor);
 
   const starGeometry = new THREE.BufferGeometry();
@@ -215,10 +221,13 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     const body = bodies.find(b => b.data.id === id)!;
     const aspect = container.clientWidth / container.clientHeight;
     const displayRadius = id === 'saturn' ? 22 : body.radius;
-    const distance = displayRadius * Math.max(3.65, 2.9 / aspect);
+    const distance = displayRadius * Math.max(3.9, 2.9 / aspect);
     const target = body.group.position.clone();
+    // Aim below the center so the tangent point and its reflection remain above
+    // the bottom navigation instead of disappearing underneath it.
+    target.y = body.height * 0.65;
     if (aspect > 1.2) target.x -= displayRadius * 0.32;
-    return { position: target.clone().add(new THREE.Vector3(displayRadius * 0.08, displayRadius * 0.5, distance)), target };
+    return { position: target.clone().add(new THREE.Vector3(displayRadius * 0.08, displayRadius * 0.95, distance)), target };
   }
   function travel(position: THREE.Vector3, target: THREE.Vector3) {
     transition = { from: camera.position.clone(), to: position, targetFrom: controls.target.clone(), targetTo: target, start: performance.now(), duration: motion ? 1800 : 0 };
