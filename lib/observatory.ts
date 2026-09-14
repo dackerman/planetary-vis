@@ -1,4 +1,4 @@
-import { BLACK_HOLES, blackHoleRadius, blackHolePosition, type BlackHoleId } from './black-holes';
+import { BLACK_HOLES, blackHoleRadius, blackHolePosition, blackHoleTravelSpeed, type BlackHoleId } from './black-holes';
 import { createBlackHoleEffects, type ShaderQuality } from './black-hole-effects';
 import { GALACTIC_SKY_GLSL } from './galactic-sky';
 import { createSolarEffects } from './solar-effects';
@@ -324,18 +324,19 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
     const diameter = document.createElement('small');diameter.textContent = `${formatDistance(holeRadius * 2 * KM_PER_UNIT)} horizon`;
     const distance = document.createElement('small');distance.className='label-distance';
     holeLabel.appendChild(diameter);holeLabel.appendChild(distance);
-    if (blackHolesEnabled) inspectBlackHole();
+    if (blackHolesEnabled) besideSun();
   }
   function inspectBlackHole() {
     if (!blackHolesEnabled) return;
-    keys.clear();setNavigation('look');controls.minDistance=holeRadius*1.1;setSpeed(holeRadius*KM_PER_UNIT*.025);
+    keys.clear();setNavigation('look');controls.minDistance=holeRadius*1.1;setSpeed(blackHoleTravelSpeed(BLACK_HOLES.find(h=>h.id===activeHole)!.mass));
     const distance = holeRadius * Math.max(19, 17 / camera.aspect);
     travel(holeCenter.clone().add(new THREE.Vector3(holeRadius * .15, holeRadius * 3.5, distance)), holeCenter.clone());
   }
   function besideSun() {
-    selected='sun';callbacks.onSelect('sun');keys.clear();setNavigation('look');setSpeed(DEFAULT_SPEED);
+    selected='sun';callbacks.onSelect('sun');keys.clear();setNavigation('look');controls.minDistance=.001;
+    setSpeed(blackHolesEnabled ? blackHoleTravelSpeed(BLACK_HOLES.find(h=>h.id===activeHole)!.mass) : DEFAULT_SPEED);
     const sun=bodies.find(b=>b.data.id==='sun')!;
-    travel(sun.group.position.clone().add(new THREE.Vector3(-150, 160, 650)),sun.group.position.clone().add(new THREE.Vector3(0,30,-500)));
+    travel(sun.group.position.clone().add(new THREE.Vector3(-150, 160, 650)),blackHolesEnabled ? holeCenter.clone() : sun.group.position.clone().add(new THREE.Vector3(0,30,-500)));
   }
   function setBlackHoles(enabled: boolean) {
     if (enabled === blackHolesEnabled) return;
@@ -345,7 +346,6 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
       holeEffects.setQuality(shaderQuality);
       setLayout('compact');selectBlackHole(activeHole);
       collisionBodies.push(holeCollision);controls.maxDistance=2e9;
-      besideSun();
     }else{
       collisionBodies.splice(collisionBodies.indexOf(holeCollision),1);
       controls.maxDistance=2000;setSpeed(Math.min(speedKms,1e8));camera.near=.005;camera.updateProjectionMatrix();

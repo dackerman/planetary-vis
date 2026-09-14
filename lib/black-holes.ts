@@ -37,3 +37,10 @@ export function blackHolePosition(mass: number) {
   }
   return { x: 0, y: radius, z };
 }
+
+// Exhibition travel preset in km/s. Small holes scale linearly; the enormous
+// mass range above Sgr A* uses a gentler curve so controls remain manageable.
+export function blackHoleTravelSpeed(mass: number) {
+  if (mass <= 4.3e6) return 1e6 * mass / 4.3e6;
+  return Math.min(5e6, 1e6 * (mass / 4.3e6) ** (Math.log(5) / Math.log(66e9 / 4.3e6)));
+}

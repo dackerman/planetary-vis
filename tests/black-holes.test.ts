@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BLACK_HOLES, blackHoleRadius, blackHolePosition, SOLAR_HORIZON_RADIUS_KM, DISK_OUTER_RADIUS, EXHIBITION_CLEARANCE_RATIO } from '../lib/black-holes.ts';
+import { BLACK_HOLES, blackHoleRadius, blackHolePosition, SOLAR_HORIZON_RADIUS_KM, DISK_OUTER_RADIUS, EXHIBITION_CLEARANCE_RATIO, blackHoleTravelSpeed } from '../lib/black-holes.ts';
 import { BODIES, KM_PER_UNIT, bodyDimensions } from '../lib/planets.ts';
 import { safeMovement } from '../lib/navigation.ts';
 import * as THREE from 'three';
@@ -46,4 +46,10 @@ test('supermassive disks overhang the Sun while the holes sit much closer', () =
     assert.ok(horizontal<DISK_OUTER_RADIUS*r, 'Sun lies under disk footprint');
     assert.ok(r>2*695700/KM_PER_UNIT, 'disk plane clears the whole Sun');
   }
+});
+
+test('travel presets span the requested Sgr A and TON speeds monotonically', () => {
+  assert.equal(blackHoleTravelSpeed(4.3e6),1e6);
+  assert.ok(Math.abs(blackHoleTravelSpeed(66e9)-5e6)<1e-6);
+  for(let i=1;i<BLACK_HOLES.length;i++) assert.ok(blackHoleTravelSpeed(BLACK_HOLES[i].mass)>blackHoleTravelSpeed(BLACK_HOLES[i-1].mass));
 });
