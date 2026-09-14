@@ -75,7 +75,7 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
   scene.add(sunLight);
 
   let blackHolesEnabled = false;
-  let activeHole: BlackHoleId = 'sgr';
+  let activeHole: BlackHoleId = 'rgg118';
   let lensingEnabled = true, diskEnabled = true, horizonGuide = false;
   let shaderQuality: ShaderQuality = 'auto';
   let holeEffects: ReturnType<typeof createBlackHoleEffects> | undefined;
@@ -344,7 +344,7 @@ void main(){gl_FragColor=vec4(sky(skyDirection),1.);
     if(enabled){
       holeEffects ??= createBlackHoleEffects(renderer);
       holeEffects.setQuality(shaderQuality);
-      setLayout('compact');selectBlackHole(activeHole);
+      setLayout('compact');selectBlackHole('rgg118');
       collisionBodies.push(holeCollision);controls.maxDistance=2e9;
     }else{
       collisionBodies.splice(collisionBodies.indexOf(holeCollision),1);

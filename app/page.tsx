@@ -18,7 +18,7 @@ export default function HomePage() {
   const mount = useRef<HTMLDivElement>(null);
   const engine = useRef<Observatory | null>(null);
   const [blackHoles, setBlackHoles] = useState(false);
-  const [holeId, setHoleId] = useState<BlackHoleId>('sgr');
+  const [holeId, setHoleId] = useState<BlackHoleId>('rgg118');
   const [shaderQuality, setShaderQuality] = useState<ShaderQuality>('auto');
   const [lensing, setLensing] = useState(true);
   const [disk, setDisk] = useState(true);
@@ -68,7 +68,7 @@ export default function HomePage() {
     return () => { disposed = true; engine.current?.dispose(); engine.current = null; };
   }, []);
 
-  function changeExhibition(value: boolean) { setBlackHoles(value);setLayout('compact');engine.current?.setBlackHoles(value); }
+  function changeExhibition(value: boolean) { if(value && !blackHoles) setHoleId('rgg118');setBlackHoles(value);setLayout('compact');engine.current?.setBlackHoles(value); }
   function visitHole(id: BlackHoleId) { setHoleId(id);engine.current?.selectBlackHole(id); }
   function visit(id: BodyId) { setSelected(id); setView('Explore'); engine.current?.focus(id); }
   function changeLayout(value: LayoutMode) { setLayout(value); setView('Explore'); engine.current?.setLayout(value); }
