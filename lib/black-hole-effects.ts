@@ -118,8 +118,9 @@ void main(){
   float closest=-dot(eye,rd);
   float groundT=rd.y<-.000001?(-1.-eye.y)/rd.y:1.e20;
   bool isFloor=depth<.999999 && groundT>0. && abs(sceneDistance-groundT)<max(.00005,groundT*.003);
-  // This depth test protects foreground planets, but never chooses reflection.
-  if(depth<.999999 && sceneDistance<max(0.,closest-3.) && !isFloor){gl_FragColor=vec4(0.);return;}
+  // Protect bodies in front of the horizon, including the nearby Sun.
+  // A three-radius exclusion would erase it in the compact exhibition.
+  if(depth<.999999 && sceneDistance<max(0.,closest-1.) && !isFloor){gl_FragColor=vec4(0.);return;}
   Trace primary=traceRay(eye,rd);
   vec3 light=primary.light;
   float baseWeight=0.;

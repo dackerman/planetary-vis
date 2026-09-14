@@ -1,4 +1,4 @@
-import { KM_PER_UNIT } from './planets.ts';
+import { KM_PER_UNIT, BODIES, bodyDimensions } from './planets.ts';
 
 // IAU nominal solar mass parameter (m³/s²), exact c (m/s).
 export const SOLAR_HORIZON_RADIUS_KM = 2 * 1.3271244e20 / 299792458 ** 2 / 1000;
@@ -16,9 +16,24 @@ export const BLACK_HOLES = [
 ] as const;
 export type BlackHoleId = typeof BLACK_HOLES[number]['id'];
 export function blackHoleRadius(mass: number) { return mass * SOLAR_HORIZON_RADIUS_KM / KM_PER_UNIT; }
-// One selected black hole per exhibition. Keep all original planets fixed. The
-// disk is horizontal at y=R, with clearance from the planetary exhibition.
+// A conservative shadow-sized clearance envelope, not a physical surface:
+// the apparent shadow depends on the observer. Additional room keeps its
+// outline readable from the solar exhibition instead of filling the whole view.
+export const EXHIBITION_CLEARANCE_RATIO = SHADOW_RADIUS_RATIO + 1.9;
 export function blackHolePosition(mass: number) {
   const radius = blackHoleRadius(mass);
-  return { x: 0, y: radius, z: -108 - Math.max(900, radius * 14) };
+  let z = -108;
+  for (const body of BODIES) {
+    const dimensions = bodyDimensions(body);
+    const clearance = EXHIBITION_CLEARANCE_RATIO * radius + dimensions.radius + 30;
+    const vertical = radius - dimensions.height;
+    const offset = Math.sqrt(Math.max(0, clearance ** 2 - vertical ** 2 - body.x ** 2));
+    z = Math.min(z, body.z - offset);
+    // Large disks can overhang the entire exhibition. Only require lateral
+    // clearance when the disk plane actually intersects a body's height.
+    if (Math.abs(vertical) < dimensions.radius + 10) {
+      z = Math.min(z, body.z - (DISK_OUTER_RADIUS * radius + dimensions.radius + 30));
+    }
+  }
+  return { x: 0, y: radius, z };
 }
