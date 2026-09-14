@@ -306,3 +306,5 @@ kbd { font-family: var(--font-geist-mono),monospace; color: #b7cbe2; }
 .solar-time-control .segmented { width: 100%; display: flex; min-width: 0; }
 .solar-time-control .segmented button { min-width: 0; flex: 1; padding: 8px 4px; font-size: 10px; white-space: normal; }
 .travel-panel { overflow-x: hidden; scrollbar-width: thin; scrollbar-color: #526679 transparent; }
+
+.world-label .label-distance { color: #bfd9f4; font-variant-numeric: tabular-nums; white-space: nowrap; }

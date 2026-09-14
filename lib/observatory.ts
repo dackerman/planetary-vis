@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { BODIES, bodyDimensions, bodyPosition, KM_PER_UNIT, type BodyId, type LayoutMode } from './planets';
-import { DEFAULT_SPEED, clampSpeed, movementDelta, safeMovement, type NavigationMode, type Telemetry } from './navigation';
+import { DEFAULT_SPEED, formatDistance, surfaceDistanceKm, clampSpeed, movementDelta, safeMovement, type NavigationMode, type Telemetry } from './navigation';
 
 export interface Observatory {
   focus(id: BodyId): void;
@@ -154,11 +154,12 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
     }
     const label = document.createElement('button');
     label.className = 'world-label';
-    label.innerHTML = `<span class="label-dot" style="background:${data.color}"></span>${data.name}<small>${(data.equatorial / 6378.1).toFixed(data.id === 'sun' ? 1 : 2)} × Earth</small>`;
+    label.innerHTML = `<span class="label-dot" style="background:${data.color}"></span>${data.name}<small>${(data.equatorial / 6378.1).toFixed(data.id === 'sun' ? 1 : 2)} × Earth</small><small class="label-distance"></small>`;
     label.setAttribute('aria-label', `Travel to ${data.name}`);
     label.addEventListener('click', () => { focus(data.id); callbacks.onSelect(data.id); });
+    const distanceLabel = label.querySelector<HTMLElement>('.label-distance')!;
     labelLayer.appendChild(label);
-    return { data, group, globe, radius, height, label };
+    return { data, group, globe, radius, height, label, distanceLabel };
   });
 
   // Perspective-correct planar reflection, darkened to resemble polished obsidian.
@@ -488,7 +489,9 @@ export function createObservatory(container: HTMLElement, callbacks: Callbacks):
       const y = (-projected.y * 0.5 + 0.5) * container.clientHeight - stem;
       body.label.style.setProperty('--stem-height', `${stem}px`);
       body.label.classList.toggle('distant-marker', stem > 0);
-      const sizeOpacity = layout === 'distances' ? 1 : THREE.MathUtils.smoothstep(angularRadius, 0.002, 0.005);
+      const sizeOpacity = 1;
+      const distanceText = `${formatDistance(surfaceDistanceKm(camera.position, body.group.position, body.radius, body.height))} to surface`;
+      if (body.distanceLabel.textContent !== distanceText) body.distanceLabel.textContent = distanceText;
       if (visible) {
         const distance = anchor.distanceTo(camera.position);
         ray.set(camera.position, direction.copy(anchor).sub(camera.position).normalize());

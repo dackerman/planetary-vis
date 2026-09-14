@@ -52,3 +52,18 @@ export function safeMovement(start: THREE.Vector3, delta: THREE.Vector3, bodies:
   result.y = Math.max(result.y, 0.04 - start.y);
   return result;
 }
+
+// Closest Euclidean distance to an axis-aligned oblate planet surface.
+export function surfaceDistanceKm(camera: THREE.Vector3, center: THREE.Vector3, radius: number, height: number) {
+  const x = camera.x - center.x, y = camera.y - center.y, z = camera.z - center.z;
+  const rr = radius * radius, hh = height * height;
+  if ((x*x + z*z) / rr + y*y / hh <= 1) return 0;
+  let low = 0, high = Math.max(radius, height) * Math.hypot(x, y, z);
+  for (let i = 0; i < 40; i++) {
+    const t = (low + high) / 2;
+    const equation = rr * (x*x + z*z) / ((t+rr)*(t+rr)) + hh*y*y / ((t+hh)*(t+hh));
+    if (equation > 1) low = t; else high = t;
+  }
+  const t = (low + high) / 2;
+  return Math.hypot(x*t/(t+rr), y*t/(t+hh), z*t/(t+rr)) * KM_PER_UNIT;
+}
