@@ -379,3 +379,59 @@ kbd { font-family: var(--font-geist-mono),monospace; color: #b7cbe2; }
 .descent-controls div { display: flex; flex-wrap: wrap; gap: 6px; }
 .descent-controls small { color: #a2aeba; line-height: 1.5; }
 .descent-controls progress { width: 100%; height: 4px; accent-color: #e9ab70; }
+
+/* Mobile: the scene is primary; open one disclosure panel at a time. */
+.mobile-toolbar, .mobile-panel-close, .mobile-panel-title { display: none; }
+.mobile-controls-panel { display: contents; }
+@media (max-width: 700px) {
+ .observatory { height: 100svh; min-height: 0; }
+ .masthead { padding: max(10px, env(safe-area-inset-top)) 16px 0; }
+ .brand small { display: none; }
+ .header-actions .icon-button { width: 44px; height: 44px; }
+ .layout-controls { top: max(62px, calc(env(safe-area-inset-top) + 52px)); }
+ .layout-controls .segmented button { min-height: 38px; }
+ .layout-controls p { display: none; }
+ .mobile-toolbar { display: block; position: absolute; bottom: 0; left: 0; right: 0; padding: 8px 16px max(10px, env(safe-area-inset-bottom)); background: linear-gradient(transparent,#08101bef 30%); z-index: 6; }
+ .mobile-scene-caption { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 0 4px 8px; text-shadow: 0 1px 5px #000; }
+ .mobile-scene-caption span { font-size: 16px; color: #e2edfa; }
+ .mobile-scene-caption small { font-size: 11px; color: #aebed1; }
+ .mobile-toolbar > div:last-child { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
+ .mobile-toolbar button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; border: 1px solid #a1bad62b; border-radius: 10px; background: #101b29ed; color: #c8d9ee; font-size: 13px; }
+ .mobile-toolbar button[aria-expanded=true] { background: #27415a; border-color: #8db9e7; color: white; }
+ .observatory .planet-info, .observatory .mobile-controls-panel, .observatory .bottom-interface {
+  display: none; position: absolute; z-index: 5; left: 10px; right: 10px; top: auto; bottom: calc(100px + env(safe-area-inset-bottom)); width: auto; max-height: min(60svh, calc(100svh - 230px)); margin: 0; padding: 22px 18px; overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; background: #0c1523f5; border: 1px solid #93b9e438; border-radius: 16px; box-shadow: 0 10px 40px #0008; scrollbar-width: thin;
+ }
+ .observatory[data-mobile-panel=stats] .planet-info,
+ .observatory[data-mobile-panel=controls] .mobile-controls-panel,
+ .observatory[data-mobile-panel=objects] .bottom-interface { display: block; }
+ .mobile-panel-close { display: grid; place-items: center; position: absolute; right: 8px; top: 8px; width: 44px; height: 44px; border-radius: 8px; color: #d0e2f6; background: #182538; }
+ .mobile-panel-title { display: block; font-size: 20px; margin: 0 40px 18px 0; }
+ .observatory .planet-info h1 { font-size: 32px; margin-right: 35px; }
+ .observatory .planet-info .eyebrow { padding-right: 40px; font-size: 10px; }
+ .observatory .planet-description { display: block; max-width: none; font-size: 14px; }
+ .observatory .planet-info .metrics { flex-direction: column; gap: 16px; }
+ .observatory .planet-info .metrics > div:last-child { display: block; }
+ .observatory .planet-info .text-button, .hole-actions button, .size-steps button { min-height: 44px; font-size: 14px; }
+ .observatory .view-tools { position: static; display: flex; flex-direction: row; flex-wrap: wrap; margin: 32px 0 18px; gap: 8px; }
+ .observatory .view-tools .icon-button { height: 44px; width: 44px; }
+ .view-tools .tool-divider { display: none; }
+ .observatory .travel-panel { position: static; max-height: none; width: auto; padding: 0; overflow: visible; background: none; border: 0; box-shadow: none; backdrop-filter: none; }
+ .speed-readout strong { font-size: 19px; }
+ .speed-buttons button { min-width: 44px; min-height: 44px; }
+ .speed-presets button, .look-modes button, .touch-movement button { min-height: 44px; font-size: 12px; }
+ .odometer { font-size: 12px; }
+ .hole-options label { min-height: 44px; }
+ .shader-quality select { min-height: 44px; }
+ .observatory .navigation-caption, .observatory .bottom-note { display: none; }
+ .observatory .planet-dock, .observatory .hole-dock { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); overflow: visible; padding: 0; background: none; border: 0; box-shadow: none; backdrop-filter: none; gap: 6px; }
+ .observatory .hole-dock { grid-template-columns: repeat(2,minmax(0,1fr)); margin-bottom: 20px; }
+ .observatory .hole-dock button { min-width: 0; min-height: 64px; }
+ .observatory .planet-stop { min-width: 0; min-height: 78px; padding: 8px 4px; border: 1px solid #a1bad620; border-radius: 8px; font-size: 13px; }
+ .observatory .planet-stop small { display: none; }
+}
+.mobile-spacing { display: none; }
+@media (max-width: 700px) {
+ .layout-controls .spacing-switch { display: none; }
+ .mobile-spacing { display: block; margin-bottom: 18px; }
+ .mobile-spacing .segmented button { flex: 1; min-height: 44px; padding: 8px; }
+}

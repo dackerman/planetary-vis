@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUpRight, Expand, Home, Info, Minus, Mouse, Orbit, Plus, Scan, Sparkles } from 'lucide-react';
+import { ArrowUpRight, Expand, Home, Info, Minus, Mouse, Orbit, Plus, Scan, Sparkles, X, SlidersHorizontal } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
@@ -15,6 +15,14 @@ import type { ShaderQuality } from '@/lib/black-hole-effects';
 import type { Observatory } from '@/lib/observatory';
 
 export default function HomePage() {
+  const [mobilePanel, setMobilePanel] = useState<'stats' | 'controls' | 'objects' | null>(null);
+  function closeMobilePanel() { setMobilePanel(null); if (mobilePanel) document.querySelector<HTMLButtonElement>(`[aria-controls="mobile-${mobilePanel}"]`)?.focus(); }
+  const panelClose = <button className="mobile-panel-close" aria-label="Close panel" onClick={closeMobilePanel}><X size={20}/></button>;
+  useEffect(() => {
+    if (mobilePanel && window.matchMedia('(max-width: 700px)').matches) {
+      document.querySelector<HTMLButtonElement>(`#mobile-${mobilePanel} .mobile-panel-close`)?.focus();
+    }
+  }, [mobilePanel]);
   const mount = useRef<HTMLDivElement>(null);
   const engine = useRef<Observatory | null>(null);
   const [blackHoles, setBlackHoles] = useState(false);
@@ -61,6 +69,7 @@ export default function HomePage() {
             setShaderQuality(saved as ShaderQuality);engine.current.setShaderQuality(saved as ShaderQuality);
           }
         } catch { /* Storage may be disabled; the control still works. */ }
+        if (window.matchMedia('(max-width: 700px)').matches) { setLabels(false); engine.current.setLabels(false); }
         const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         if (reduceMotion) { setMotion(false); engine.current.setMotion(false); }
       } catch { setFailed(true); setStatus('This experience needs WebGL 2. Please enable hardware acceleration or try another browser.'); }
@@ -69,14 +78,14 @@ export default function HomePage() {
   }, []);
 
   function changeExhibition(value: boolean) { if(value && !blackHoles) setHoleId('rgg118');setBlackHoles(value);setLayout('compact');engine.current?.setBlackHoles(value); }
-  function visitHole(id: BlackHoleId) { setHoleId(id);engine.current?.selectBlackHole(id); }
-  function visit(id: BodyId) { setSelected(id); setView('Explore'); engine.current?.focus(id); }
+  function visitHole(id: BlackHoleId) { closeMobilePanel(); setHoleId(id);engine.current?.selectBlackHole(id); }
+  function visit(id: BodyId) { closeMobilePanel(); setSelected(id); setView('Explore'); engine.current?.focus(id); }
   function changeLayout(value: LayoutMode) { setLayout(value); setView('Explore'); engine.current?.setLayout(value); }
   function changeSpeed(value: number) { engine.current?.setSpeed(value); }
   function overview() { setView('Overview'); engine.current?.overview(); }
 
   return (
-    <main className={`observatory ${blackHoles ? 'black-holes-view' : ''}`}>
+    <main className={`observatory ${blackHoles ? 'black-holes-view' : ''}`} data-mobile-panel={mobilePanel ?? 'none'}>
       <div ref={mount} className="scene" aria-label="Interactive 3D solar system size comparison. WASD moves, Q/E changes altitude, drag to look, brackets change speed. Use the planet buttons to travel." />
       <div className="descent-darkness" style={{opacity: blackHoles ? telemetry.descent?.fade ?? 0 : 0}} aria-hidden="true" />
       <div className="vignette" />
@@ -100,7 +109,7 @@ export default function HomePage() {
           <ToggleGroupItem value="solar">Solar system</ToggleGroupItem><ToggleGroupItem value="blackholes">Black holes</ToggleGroupItem>
         </ToggleGroup>
         {!blackHoles && <>
-        <ToggleGroup aria-label="Planet spacing" value={[layout]} onValueChange={values => { if (values[0]) changeLayout(values[0] as LayoutMode); }} className="segmented" disabled={!ready}>
+        <ToggleGroup aria-label="Planet spacing" value={[layout]} onValueChange={values => { if (values[0]) changeLayout(values[0] as LayoutMode); }} className="segmented spacing-switch" disabled={!ready}>
           <ToggleGroupItem value="compact">Close together</ToggleGroupItem>
           <ToggleGroupItem value="distances">True distances</ToggleGroupItem>
         </ToggleGroup>
@@ -108,8 +117,8 @@ export default function HomePage() {
         {blackHoles && <p>One horizon at a time. The same Sun. The same scale.</p>}
       </div>
 
-      {blackHoles ? <section className="planet-info hole-info" aria-label="Selected black hole">
-        <div className="eyebrow"><span className="info-dot" style={{background:'#e9ab70'}}/>{String(holeIndex+1).padStart(2,'0')} / {hole.kind}</div>
+      {blackHoles ? <section id="mobile-stats" className="planet-info hole-info" aria-label="Selected black hole">
+        {panelClose}<div className="eyebrow"><span className="info-dot" style={{background:'#e9ab70'}}/>{String(holeIndex+1).padStart(2,'0')} / {hole.kind}</div>
         <h1>{hole.name}</h1>
         <p className="planet-description">{hole.description}</p>
         <div className="metrics"><div><span className="metric-label">EVENT HORIZON DIAMETER</span><strong>{formatDistance(hole.mass * SOLAR_HORIZON_RADIUS_KM * 2)}</strong><small className="horizon-note">Nonrotating equivalent · <a href={hole.source} target="_blank" rel="noreferrer">mass source ↗</a></small></div><div><span className="metric-label">COMPARED TO THE SUN’S DIAMETER</span><strong>{(hole.mass * SOLAR_HORIZON_RADIUS_KM / 695700).toLocaleString('en-US',{maximumSignificantDigits:4})}<small> ×</small></strong></div></div>
@@ -147,13 +156,13 @@ export default function HomePage() {
             <progress aria-label="Descent progress" value={telemetry.descent.progress} max={1}/>
             <div>{telemetry.descent.progress<1 && <button onClick={()=>engine.current?.pauseDescent()}>{telemetry.descent.paused ? 'Resume' : 'Pause'}</button>}<button onClick={()=>engine.current?.startDescent()}>Restart</button><button onClick={()=>engine.current?.besideSun()}>Return to Sun</button></div>
             <small>Drag or use arrow keys to look around. Esc returns to the Sun.</small>
-          </> : <button className="descent-start" onClick={()=>{setLensing(true);setGuide(false);engine.current?.setLensing(true);engine.current?.setHorizonGuide(false);engine.current?.startDescent();}}>Fall into the black hole ↘</button>}
+          </> : <button className="descent-start" onClick={()=>{setLensing(true);setGuide(false);engine.current?.setLensing(true);engine.current?.setHorizonGuide(false);engine.current?.startDescent();closeMobilePanel();}}>Fall into the black hole ↘</button>}
           <small>35-second cinematic illustration. Stationary-view lensing and a final fade; not a physical free-fall simulation.</small>
         </div>
         <div className="hole-actions"><button onClick={()=>engine.current?.inspectBlackHole()}>Inspect black hole ↗</button><button onClick={()=>engine.current?.besideSun()}>Stand beside the Sun ↗</button><button onClick={()=>engine.current?.inspectSolarArcade()}>Inspect the Sun’s corona ↗</button></div>
         <div className="size-steps"><button disabled={holeIndex===0} onClick={()=>visitHole(BLACK_HOLES[holeIndex-1].id)}>← Smaller</button><span>{holeIndex+1} / {BLACK_HOLES.length}</span><button disabled={holeIndex===BLACK_HOLES.length-1} onClick={()=>visitHole(BLACK_HOLES[holeIndex+1].id)}>Larger →</button></div>
-      </section> : <section className="planet-info" aria-live="polite" aria-atomic="true">
-        <div className="eyebrow"><span className="info-dot" style={{ background: body.color }}/>{view === 'Overview' ? 'THE BIG PICTURE' : `${body.number} / ${body.kind}`}</div>
+      </section> : <section id="mobile-stats" className="planet-info" aria-live="polite" aria-atomic="true">
+        {panelClose}<div className="eyebrow"><span className="info-dot" style={{ background: body.color }}/>{view === 'Overview' ? 'THE BIG PICTURE' : `${body.number} / ${body.kind}`}</div>
         <h1>{view === 'Overview' ? <>A little<br/>perspective.</> : body.name}</h1>
         <p className="planet-description">{view === 'Overview' ? 'One star. Eight planets. One true scale.' : body.description}</p>
         <div className="metrics" aria-label={view === 'Overview' ? `Reference: ${body.name}` : undefined}><div><span className="metric-label">{view === 'Overview' ? `${body.name.toUpperCase()} · DIAMETER` : 'EQUATORIAL DIAMETER'}</span><strong>{new Intl.NumberFormat('en-US').format(Math.round(body.equatorial * 2))}<small> km</small></strong></div><div><span className="metric-label">COMPARED TO EARTH</span><strong>{(body.equatorial / 6378.1).toFixed(body.id === 'sun' ? 1 : 2)}<small> ×</small></strong></div></div>
@@ -162,6 +171,7 @@ export default function HomePage() {
         <button className="text-button" onClick={overview} disabled={!ready}><Scan size={15}/> See the whole picture <ArrowUpRight size={14}/></button>
       </section>}
 
+      <div id="mobile-controls" className="mobile-controls-panel">{panelClose}
       <div className="view-tools" aria-label="View controls">
         <button className="icon-button" title="Return to Earth (Home)" aria-label="Return to Earth" onClick={() => visit('earth')} disabled={!ready}><Home size={18}/></button>
         <button className="icon-button" title="Zoom in" aria-label="Zoom in" onClick={() => engine.current?.zoom(0.7)} disabled={!ready}><Plus size={19}/></button>
@@ -191,7 +201,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer className="bottom-interface">
+      </div>
+      <footer id="mobile-objects" className="bottom-interface">
+        {panelClose}<h2 className="mobile-panel-title">Explore the scale</h2>
+        {!blackHoles && <div className="mobile-spacing"><ToggleGroup aria-label="Planet spacing" value={[layout]} onValueChange={values => { if(values[0]) changeLayout(values[0] as LayoutMode); }} className="segmented" disabled={!ready}><ToggleGroupItem value="compact">Close together</ToggleGroupItem><ToggleGroupItem value="distances">True distances</ToggleGroupItem></ToggleGroup></div>}
         <div className="navigation-caption"><span><span className="live-dot"/>{view === 'Overview' ? 'SYSTEM OVERVIEW' : `REFERENCE: ${body.name.toUpperCase()}`}</span><span className="mouse-hint"><Mouse size={14}/> WASD to move <i/> Drag to {navigation === 'look' ? 'look' : 'orbit'} <i/> [ ] to change speed</span></div>
         {blackHoles && <nav className="hole-dock" aria-label="Black hole size progression">{BLACK_HOLES.map((h,i)=><button key={h.id} aria-pressed={holeId===h.id} onClick={()=>visitHole(h.id)}><span>{String(i+1).padStart(2,'0')}</span><strong>{h.short}</strong><small>{formatDistance(h.mass*SOLAR_HORIZON_RADIUS_KM*2)}</small></button>)}</nav>}
         <nav className="planet-dock" aria-label="Travel to a planet">
@@ -199,6 +212,10 @@ export default function HomePage() {
         </nav>
         <div className="bottom-note"><span><Sparkles size={12}/> {blackHoles ? 'Horizon sizes to scale. One selected black hole; all planets retained.' : layout === 'compact' ? 'Sizes to scale. Distances arranged for comparison.' : 'Sizes and mean solar distances use the same linear scale. Markers identify distant bodies.'}</span><span>01 STAR <i/> 08 PLANETS <i/> INFINITE PERSPECTIVE</span></div>
       </footer>
+      <nav className="mobile-toolbar" aria-label="Scene panels">
+        <div className="mobile-scene-caption"><span>{blackHoles ? hole.name : view === 'Overview' ? 'Solar system' : body.name}</span><small>Drag to look around</small></div>
+        <div>{([{id:'objects',label:'Explore',icon:<Orbit size={18}/>},{id:'stats',label:'Details',icon:<Info size={18}/>},{id:'controls',label:'Controls',icon:<SlidersHorizontal size={18}/>} ] as const).map(panel => <button key={panel.id} aria-expanded={mobilePanel===panel.id} aria-controls={`mobile-${panel.id}`} onClick={()=>setMobilePanel(mobilePanel===panel.id ? null : panel.id)}>{panel.icon}{panel.label}</button>)}</div>
+      </nav>
       {!ready && <div className={`loading-screen ${failed ? 'error' : ''}`} role="status"><Orbit size={36} className={failed ? '' : 'loading-orbit'}/><p>{status}</p>{failed && <button className="text-button" onClick={() => window.location.reload()}>Reload observatory</button>}</div>}
     </main>
   );
